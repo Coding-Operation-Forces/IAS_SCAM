@@ -1,3 +1,4 @@
+Через pgAdmin4:
 1) Завантажити PostgreSQL та pgAdmin4
 2)В Radmin VPN підключитися до цієї мережі:
 Name: TRPZ510
@@ -7,3 +8,13 @@ Password: 12345678
 	- На вкладці General ввести назву (наприклад, Сервер Кирила).
 	- На вкладці Connection: У полі Host name/address вставити IP-адресу сервера(Кирил). Порт залишити 5432. Username: postgres. 	   	Password: Спитати у Кирила. Натиснути Save.
 
+
+Якщо в коді - створити файл .env і вставити в нього: 
+# Файл .env на комп'ютері члена команди
+DB_USER=postgres
+DB_PASSWORD=ваш_пароль_від_postgres
+DB_HOST=ВАША_IP_АДРЕСА_З_КРОКУ_2
+DB_PORT=5432
+DB_NAME=skam_db
+
+DATABASE_URL=postgresql://postgres:ваш_пароль_від_postgres@ВАША_IP_АДРЕСА_З_КРОКУ_2:5432/skam_db
