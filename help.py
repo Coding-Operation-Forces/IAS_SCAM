@@ -1,3 +1,5 @@
+import os
+
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QSplitter,
                              QTreeWidget, QTreeWidgetItem, QTextBrowser)
 from PyQt6.QtCore import Qt
@@ -6,6 +8,8 @@ from PyQt6.QtGui import QIcon
 
 class HelpWindow(QWidget):
     def __init__(self, help_data, title="Довідка", is_dark_theme=True):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base_dir, "icon.png")
         super().__init__()
         self.help_data = help_data
         self.is_dark_theme = is_dark_theme
@@ -13,7 +17,7 @@ class HelpWindow(QWidget):
         self.text_color = "#F8F8F2" if is_dark_theme else "#2C3E50"
 
         self.setWindowTitle(title)
-        self.setWindowIcon(QIcon("icon.png"))
+        self.setWindowIcon(QIcon(icon_path))
         self.resize(850, 600)
 
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)

@@ -1,3 +1,4 @@
+import os
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QLineEdit, QFrame)
 from PyQt6.QtCore import Qt, QPropertyAnimation
@@ -8,11 +9,17 @@ class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.is_dark_theme = True
+        
+        # МАГІЯ ТУТ: Визначаємо абсолютний шлях до папки, де лежить цей файл (тобто до папки UI)
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.icon_path = os.path.join(self.base_dir, "icon.png")
+        
         self.init_ui()
 
     def init_ui(self):
         self.setWindowTitle("Авторизація")
-        self.setWindowIcon(QIcon("icon.png"))
+        # Використовуємо абсолютний шлях
+        self.setWindowIcon(QIcon(self.icon_path))
         self.resize(400, 500)
         self.setObjectName("login_window")
 
@@ -34,7 +41,8 @@ class LoginWindow(QWidget):
 
         # Логотип
         self.logo = QLabel()
-        pixmap = QPixmap("icon.png")
+        # Використовуємо абсолютний шлях для QPixmap
+        pixmap = QPixmap(self.icon_path)
         if not pixmap.isNull():
             self.logo.setPixmap(
                 pixmap.scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))

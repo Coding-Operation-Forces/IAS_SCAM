@@ -1,3 +1,5 @@
+import os
+
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QTableWidget, QTableWidgetItem,
                              QHeaderView, QLineEdit, QComboBox, QFormLayout,
@@ -229,12 +231,14 @@ class ArmAdminWindow(BaseArmWindow):
         return page
 
     def build_about_page(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base_dir, "icon.png")
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         logo = QLabel()
-        pixmap = QPixmap("icon.png")
+        pixmap = QPixmap(icon_path)
         if not pixmap.isNull():
             logo.setPixmap(
                 pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
