@@ -39,13 +39,14 @@ class DarkSplashScreen(QSplashScreen):
             logo = logo.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             painter.drawPixmap(40, 80, logo)
 
+        # Оновлено: Збільшено область виведення тексту для повної назви
         painter.setPen(QColor("#F8F8F2"))
-        painter.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
-        painter.drawText(QRect(190, 80, 350, 80), Qt.AlignmentFlag.AlignLeft, "Інформаційно-аналітична\nсистема СКАМ")
+        painter.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        painter.drawText(QRect(180, 70, 360, 100), Qt.AlignmentFlag.AlignLeft, "Інформаційно-аналітична\nсистема СКАМ")
 
         painter.setPen(QColor("#A6ADC8"))
         painter.setFont(QFont("Segoe UI", 12))
-        painter.drawText(QRect(190, 170, 350, 30), Qt.AlignmentFlag.AlignLeft, f"Версія комплексу: {version}")
+        painter.drawText(QRect(180, 170, 360, 30), Qt.AlignmentFlag.AlignLeft, f"Версія комплексу: {version}")
 
         painter.end()
         super().__init__(pixmap)
