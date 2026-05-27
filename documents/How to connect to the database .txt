@@ -1,0 +1,9 @@
+1) Завантажити PostgreSQL та pgAdmin4
+2)В Radmin VPN підключитися до цієї мережі:
+Name: TRPZ510
+Password: 12345678
+3)В pgAdmin4: 
+	- натиснути пкм на Servers -> Register -> Server
+	- На вкладці General ввести назву (наприклад, Сервер Кирила).
+	- На вкладці Connection: У полі Host name/address вставити IP-адресу сервера(Кирил). Порт залишити 5432. Username: postgres. 	   	Password: Спитати у Кирила. Натиснути Save.
+
