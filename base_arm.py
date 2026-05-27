@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                              QTabWidget, QTableWidgetItem)
 from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, QPoint
 from PyQt6.QtGui import QIcon, QPainter, QPen, QColor
+import os
 
 
 class StyledComboBox(QComboBox):
@@ -60,8 +61,10 @@ class BaseArmWindow(QWidget):
         self.init_base_ui()
 
     def init_base_ui(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base_dir, "icon.png")
         self.setWindowTitle(self.title_text)
-        self.setWindowIcon(QIcon("icon.png"))
+        self.setWindowIcon(QIcon(icon_path))
         self.resize(1100, 700)
         self.setStyleSheet("font-family: 'Segoe UI', sans-serif;")
 
