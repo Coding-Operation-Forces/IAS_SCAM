@@ -1,8 +1,9 @@
 import os
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QLineEdit, QFrame)
+                             QPushButton, QLineEdit, QFrame, QMessageBox)
 from PyQt6.QtCore import Qt, QPropertyAnimation
 from PyQt6.QtGui import QPixmap, QIcon
+from services.auth_service import authenticate_user
 
 
 class LoginWindow(QWidget):
@@ -90,28 +91,40 @@ class LoginWindow(QWidget):
     # ЛОГІКА ВХОДУ (РОУТИНГ)
     # ==========================================
     def perform_login(self):
-        login_text = self.login_input.text().lower()
+        login_text = self.login_input.text().strip()
+        password_text = self.password_input.text().strip()
 
-        # Тимчасова логіка маршрутизації (до підключення бази даних)
-        if "admin" in login_text:
-            from ui.arm_admin import ArmAdminWindow
-            self.main_window = ArmAdminWindow()
-        elif "manager" in login_text:
-            from ui.arm_manager import ArmManagerWindow
-            self.main_window = ArmManagerWindow()
+        if not login_text or not password_text:
+            QMessageBox.warning(self, "Помилка", "Будь ласка, введіть логін та пароль.")
+            return
+
+        # ВИКЛИКАЄМО НАШ БЕКЕНД
+        user_data = authenticate_user(login_text, password_text)
+
+        if user_data:
+            role_id = user_data["role_id"]
+
+            # Маршрутизація залежно від ролі з БД
+            if role_id == 1:
+                from ui.arm_admin import ArmAdminWindow
+                self.main_window = ArmAdminWindow()
+            elif role_id == 2:
+                from ui.arm_manager import ArmManagerWindow
+                self.main_window = ArmManagerWindow()
+            else:
+                from ui.arm_worker import ArmWorkerWindow
+                self.main_window = ArmWorkerWindow()
+
+            # Передаємо поточну тему
+            if not self.is_dark_theme:
+                self.main_window.is_dark_theme = False
+                self.main_window.theme_btn.setText("🌙 Темна тема")
+                self.main_window.apply_theme()
+
+            self.main_window.show()
+            self.close()
         else:
-            from ui.arm_worker import ArmWorkerWindow
-            self.main_window = ArmWorkerWindow()
-
-        # Передаємо поточну тему у нове вікно, щоб не було блимання кольорів
-        if not self.is_dark_theme:
-            self.main_window.is_dark_theme = False
-            self.main_window.theme_btn.setText("🌙 Темна тема")
-            self.main_window.apply_theme()
-
-        self.main_window.show()
-        self.close()
-
+            QMessageBox.critical(self, "Відмова", "Невірний логін або пароль!")
     # ==========================================
     # ЛОГІКА ЗМІНИ ТЕМИ
     # ==========================================

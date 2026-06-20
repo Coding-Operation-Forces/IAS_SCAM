@@ -215,7 +215,12 @@ class BaseArmWindow(QWidget):
     # ==========================================
     # СИСТЕМА ФІЛЬТРАЦІЇ ДЛЯ ТАБЛИЦЬ
     # ==========================================
-    def create_table_filters(self, table):
+    def create_table_filters(self, table, filter_options=None):
+        """
+        filter_options: словник, де ключ — це номер колонки (int),
+        а значення — список варіантів для випадаючого списку (list).
+        """
+        filter_options = filter_options or {}
         filter_widget = QWidget()
         filter_layout = QHBoxLayout(filter_widget)
         filter_layout.setContentsMargins(0, 0, 0, 5)
@@ -225,22 +230,40 @@ class BaseArmWindow(QWidget):
         for col in range(table.columnCount()):
             header_item = table.horizontalHeaderItem(col)
             header_text = header_item.text() if header_item else f"Колонка {col + 1}"
-            header_text = header_text.replace('\n', ' ')
 
-            le = QLineEdit()
-            le.setPlaceholderText(f"🔍 {header_text}")
-            le.setProperty("is_filter", "true")
-            filter_layout.addWidget(le)
-            inputs.append((col, le))
-            le.textChanged.connect(lambda text, t=table, ins=inputs: self.filter_table(t, ins))
+            # Виправляємо текст заголовка ДО використання в f-рядку
+            clean_header = header_text.replace('\n', ' ')
+
+            if col in filter_options:
+                # Створюємо випадаючий список
+                cb = StyledComboBox()
+                cb.addItem("🔍 Всі")
+                cb.addItems(filter_options[col])
+                filter_layout.addWidget(cb)
+                inputs.append((col, cb))
+                cb.currentTextChanged.connect(lambda text, t=table, ins=inputs: self.filter_table(t, ins))
+            else:
+                # Старий метод із безпечним f-рядком
+                le = QLineEdit()
+                le.setPlaceholderText(f"🔍 {clean_header}")
+                le.setProperty("is_filter", "true")
+                filter_layout.addWidget(le)
+                inputs.append((col, le))
+                le.textChanged.connect(lambda text, t=table, ins=inputs: self.filter_table(t, ins))
 
         return filter_widget
 
     def filter_table(self, table, inputs):
         for row in range(table.rowCount()):
             match = True
-            for col, le in inputs:
-                filter_text = le.text().lower().strip()
+            for col, widget in inputs:
+                # Перевіряємо, чи це QComboBox чи QLineEdit
+                if isinstance(widget, QComboBox):
+                    filter_text = widget.currentText().lower().strip()
+                    if filter_text == "🔍 всі": filter_text = ""
+                else:
+                    filter_text = widget.text().lower().strip()
+
                 if filter_text:
                     item = table.item(row, col)
                     item_text = item.text().lower() if item else ""

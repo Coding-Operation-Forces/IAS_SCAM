@@ -1,6 +1,7 @@
 import sys
 import os
 from PyQt6.QtCore import Qt
+from config import APP_VERSION
 
 # --- ЦЕЙ РЯДОК МАЄ БУТИ ТУТ, ДО СТВОРЕННЯ QAPPLICATION ---
 # Встановлюємо атрибут для сумісності з QtWebEngine
@@ -69,7 +70,7 @@ def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     icon_path = os.path.join(base_dir, "ui", "icon.png")
 
-    splash = DarkSplashScreen(icon_path, "1.0.11")
+    splash = DarkSplashScreen(icon_path, APP_VERSION)
     splash.show()
 
     QTimer.singleShot(100, lambda: splash.update_progress(10, "Ініціалізація ядра системи..."))
