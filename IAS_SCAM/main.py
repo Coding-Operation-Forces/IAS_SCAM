@@ -1,30 +1,42 @@
 import sys
 import os
-from PyQt6.QtCore import Qt
+import traceback
+from PyQt6.QtCore import Qt, QTimer, QRect
+from PyQt6.QtWidgets import QApplication, QSplashScreen, QProgressBar
+from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont
 from config import APP_VERSION
 
 # --- ЦЕЙ РЯДОК МАЄ БУТИ ТУТ, ДО СТВОРЕННЯ QAPPLICATION ---
-# Встановлюємо атрибут для сумісності з QtWebEngine
-os.environ["QT_API"] =  "pyqt6"
-from PyQt6.QtWidgets import QApplication, QSplashScreen, QProgressBar
-from PyQt6.QtCore import QTimer, QRect
-from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont
+os.environ["QT_API"] = "pyqt6"
+# Додаткові налаштування для виведення внутрішніх логів Qt в консоль
+os.environ["QT_FORCE_STDERR_LOGGING"] = "1"
 
-# Тепер можна безпечно імпортувати інші компоненти
 try:
-    from PyQt6.QtWebEngineWidgets import QWebEngineView # Тестуємо доступність
+    from PyQt6.QtWebEngineWidgets import QWebEngineView
 except ImportError:
     pass
 
 from ui.login_window import LoginWindow
 
-# Встановлюємо атрибут для Shared OpenGL Context перед створенням QApplication
-QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
+# =====================================================================
+#  МАГІЧНИЙ ДЕБАГЕР: ПЕРЕХОПЛЮВАЧ КРИТИЧНИХ ПОМИЛОК EVENT LOOP PYQT
+# =====================================================================
+def qt_exception_hook(exctype, value, tb):
+    """
+    Примусово зупиняє «мовчазне» падіння 0xC0000409 і виводить у консоль
+    повний шлях, назву файлу та номери рядків, де саме стався збій.
+    """
+    print("\n" + "="*80)
+    print(" 🚨 КРИТИЧНА ПОМИЛКА ЯДРА PYQT ПЕРЕХОПЛЕНА ДЕБАГЕРОМ 🚨")
+    print("="*80)
+    traceback.print_exception(exctype, value, tb)
+    print("="*80 + "\n")
+    sys.__excepthook__(exctype, value, tb)
+    sys.exit(1)
+
 
 class DarkSplashScreen(QSplashScreen):
-    """
-    Класична корпоративна заставка, у ТЕМНІЙ темі.
-    """
+    """Класична корпоративна заставка, у ТЕМНІЙ темі."""
     def __init__(self, icon_path, version):
         width, height = 560, 320
         pixmap = QPixmap(width, height)
@@ -40,7 +52,6 @@ class DarkSplashScreen(QSplashScreen):
             logo = logo.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             painter.drawPixmap(40, 80, logo)
 
-        # Оновлено: Збільшено область виведення тексту для повної назви
         painter.setPen(QColor("#F8F8F2"))
         painter.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
         painter.drawText(QRect(180, 70, 360, 100), Qt.AlignmentFlag.AlignLeft, "Інформаційно-аналітична\nсистема СКАМ")
@@ -62,8 +73,12 @@ class DarkSplashScreen(QSplashScreen):
         self.showMessage(f"  {message}", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft, QColor("#F8F8F2"))
         QApplication.processEvents()
 
+
 def main():
-    # Створюємо об'єкт програми після налаштування атрибутів
+    # Підключаємо наш дебаг-хук перед запуском додатка
+    sys.excepthook = qt_exception_hook
+
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
@@ -82,6 +97,7 @@ def main():
     QTimer.singleShot(2500, lambda: (main_window.show(), splash.finish(main_window)))
 
     sys.exit(app.exec())
+
 
 if __name__ == "__main__":
     main()
