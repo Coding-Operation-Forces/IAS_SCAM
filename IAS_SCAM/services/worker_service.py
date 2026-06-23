@@ -37,15 +37,18 @@ def get_active_requests(show_all=False):
             
             result = []
             for r in requests:
-                # ПЕРЕНЕСЕНО НА ФРОНТЕНД: Форматування дат, адрес та назв
-                # Бекенд тепер повертає структуровані чисті дані
+                # ВИПРАВЛЕНО: Тепер ми дістаємо і вулицю, і номер будинку!
+                street_full = r.street or ""
+                if getattr(r, 'house_number', None): 
+                    street_full += f", {r.house_number}"
+                
                 result.append({
                     "id": r.id_request,
                     "request_date": r.request_date,
                     "completion_date": r.completion_date,
                     "applicant_last": r.applicant.last_name if r.applicant else "",
                     "applicant_first": r.applicant.first_name if r.applicant else "",
-                    "street": r.street or "",
+                    "street": street_full, # Віддаємо повну адресу з будинком!
                     "apartment": r.apartment or "",
                     "issue_type": r.issue_type.type_name if r.issue_type else "Не визначено",
                     "criticality": r.criticality.level_name if r.criticality else "Не визначено",
