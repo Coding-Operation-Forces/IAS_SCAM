@@ -2,12 +2,27 @@
 import os
 import shutil
 import datetime
+from dotenv import load_dotenv
 from sqlalchemy import text, create_engine
 from sqlalchemy.schema import CreateTable
 from db.database import engine, Base, SessionLocal
 import db.models  # Імпортуємо моделі для реєстрації в Base
 
-STATUS_FILE = os.path.join(os.path.abspath("."), "backups_status.txt")
+# Завантажуємо змінні оточення для доступу до SHARED_BACKUP_CONFIG
+load_dotenv()
+
+# Визначаємо шлях до мережевого конфігураційного файлу
+CONFIG_PATH = os.getenv("SHARED_BACKUP_CONFIG", "backup_settings.json")
+CONFIG_DIR = os.path.dirname(CONFIG_PATH)
+
+# Якщо шлях відносний або порожній, використовуємо поточну робочу директорію
+if not CONFIG_DIR:
+    CONFIG_DIR = os.path.abspath(".")
+
+# Файл статусу бекапу тепер зберігається в спільній папці BackSet на сервері!
+# Це дозволить колегам бачити реальний час бекапу, проведеного на сервері
+STATUS_FILE = os.path.join(CONFIG_DIR, "backups_status.txt")
+
 
 def check_db_status() -> bool:
     """
@@ -37,7 +52,7 @@ def get_disk_usage_percent() -> int:
 
 
 def get_last_backup_time() -> str:
-    """Зчитує дату й час останнього бекапу зі службового файлу."""
+    """Зчитує дату й час останнього бекапу зі спільного статус-файлу."""
     if os.path.exists(STATUS_FILE):
         try:
             with open(STATUS_FILE, "r", encoding="utf-8") as f:
@@ -48,12 +63,13 @@ def get_last_backup_time() -> str:
 
 
 def create_system_backup() -> tuple[bool, str]:
-    """Генерує повний SQL-дамп (структура + ВСІ ДАНІ) для pgAdmin."""
+    """Генерує повний SQL-дамп (структура + ВСІ ДАНІ) та зберігає його на сервері."""
     if not check_db_status():
         return False, "Неможливо створити бекап: відсутнє підключення до БД!"
 
     try:
-        backup_dir = os.path.abspath("backups")
+        # Папка backups тепер створюється безпосередньо всередині спільної папки BackSet на сервері!
+        backup_dir = os.path.join(CONFIG_DIR, "backups")
         os.makedirs(backup_dir, exist_ok=True)
 
         now = datetime.datetime.now()
@@ -71,7 +87,7 @@ def create_system_backup() -> tuple[bool, str]:
             create_table_sql = str(CreateTable(table).compile(dialect=engine.dialect)).strip()
             schema_statements.append(f"{create_table_sql};")
 
-        # 2. ВИВАНТАЖУЄМО ДАНІ З КОЖНОЇ ТАБЛИЦІ (INSERT INTO)
+        # 2. ВИВАНТАЖУЄМО ДАНІ З КОЖНОЇ ТАБЛИЦЬ (INSERT INTO)
         data_statements = []
 
         with SessionLocal() as session:
@@ -132,10 +148,10 @@ def create_system_backup() -> tuple[bool, str]:
             for statement in data_statements:
                 f.write(f"{statement}\n")
 
-        # Зберігаємо мітку часу в статус-файл
+        # Зберігаємо мітку часу в спільний статус-файл
         with open(STATUS_FILE, "w", encoding="utf-8") as f:
             f.write(formatted_now_text)
 
-        return True, f"Повний бекап успішно збережено: 'backups/{file_name}'"
+        return True, f"Повний бекап успішно збережено на сервері: 'BackSet/backups/{file_name}'"
     except Exception as e:
         return False, f"Помилка генерації повного бекапу: {str(e)}"

@@ -456,32 +456,117 @@ class ArmAdminWindow(BaseArmWindow):
         return page
 
     def build_settings_page(self):
+        """ОБ'ЄДНАНО: Єдина сторінка налаштувань системи та розкладу авто-бекапів."""
+        import json
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        group = QGroupBox("Глобальні конфігурації")
+        group = QGroupBox("Глобальні конфігурації та авто-бекап")
         form = QFormLayout(group)
 
-        le_name = QLineEdit()
-        le_name.setPlaceholderText("КП 'Київжитлоспецексплуатація'")
-        le_ip = QLineEdit()
-        le_ip.setPlaceholderText("127.0.0.1")
+        # Шлях до спільного мережевого файлу конфігурації з нашого .env
+        self.config_path = os.getenv("SHARED_BACKUP_CONFIG", "backup_settings.json")
 
-        form.addRow("Назва підприємства:", le_name)
-        form.addRow("IP-адреса сервера бази даних:", le_ip)
+        # Значення за замовчуванням на випадок, якщо файл ще не створено
+        config_data = {
+            "company_name": "КП 'Київжитлоспецексплуатація'",
+            "mode": "Щодня",
+            "custom_minutes": 1
+        }
 
-        backup_freq = StyledComboBox()
-        backup_freq.addItems(["Щодня", "Щотижня", "Кожні 12 годин"])
-        form.addRow("Частота бекапів:", backup_freq)
+        # Безпечно зчитуємо збережені дані з JSON, якщо він існує
+        if os.path.exists(self.config_path):
+            try:
+                with open(self.config_path, "r", encoding="utf-8") as f:
+                    config_data = json.load(f)
+            except:
+                pass
+
+        # 1. Текстове поле для назви підприємства
+        self.le_name = QLineEdit()
+        self.le_name.setPlaceholderText("КП 'Київжитлоспецексплуатація'")
+        self.le_name.setText(config_data.get("company_name", "КП 'Київжитлоспецексплуатація'"))
+
+        # 2. Поле IP-адреси сервера СУБД (статичне, береться з .env)
+        self.le_ip = QLineEdit()
+        self.le_ip.setText(os.getenv("DB_HOST", "192.168.1.5"))
+        self.le_ip.setEnabled(False)
+
+        # 3. Випадаючий список режимів частоти бекапів
+        self.backup_freq = StyledComboBox()
+        self.backup_freq.addItems([
+            "Кожну хвилину", "Щогодини", "Кожні 12 годин",
+            "Щодня", "Щотижня", "Щомісяця", "Свій інтервал (хв)"
+        ])
+        idx = self.backup_freq.findText(config_data.get("mode", "Щодня"))
+        if idx >= 0: self.backup_freq.setCurrentIndex(idx)
+
+        # 4. Текстове поле для введення власних хвилин (активується динамічно)
+        self.le_custom_minutes = QLineEdit()
+        self.le_custom_minutes.setPlaceholderText("Введіть хвилини...")
+        self.le_custom_minutes.setText(str(config_data.get("custom_minutes", 1)))
+
+        # Логіка активації текстового поля хвилин тільки при виборі "Свій інтервал (хв)"
+        self.backup_freq.currentTextChanged.connect(
+            lambda text: self.le_custom_minutes.setEnabled(text == "Свій інтервал (хв)")
+        )
+        self.le_custom_minutes.setEnabled(self.backup_freq.currentText() == "Свій інтервал (хв)")
+
+        # Додаємо елементи на форму графічного інтерфейсу
+        form.addRow("Назва підприємства:", self.le_name)
+        form.addRow("IP-адреса сервера (статична):", self.le_ip)
+        form.addRow("Частота авто-бекапів:", self.backup_freq)
+        form.addRow("Власний інтервал (хвилини):", self.le_custom_minutes)
 
         layout.addWidget(group)
+
+        # Кнопка збереження конфігурацій
         btn_save = self.create_action_button("Зберегти настройки", primary=True)
+        btn_save.clicked.connect(self.action_save_global_settings)
         layout.addWidget(btn_save, alignment=Qt.AlignmentFlag.AlignRight)
+
         layout.addStretch()
         return page
 
+    def action_save_global_settings(self):
+        """Зберігає назву компанії та розклад у мережевий JSON файл без участі БД."""
+        import json
+        company_text = self.le_name.text().strip()
+        mode = self.backup_freq.currentText()
+        minutes_text = self.le_custom_minutes.text().strip()
+
+        if not company_text:
+            QMessageBox.warning(self, "Увага", "Назва підприємства не може бути порожньою!")
+            return
+
+        custom_mins = 1
+        if mode == "Свій інтервал (хв)":
+            try:
+                custom_mins = int(minutes_text)
+                if custom_mins <= 0: raise ValueError()
+            except ValueError:
+                QMessageBox.warning(self, "Помилка", "Введіть ціле число хвилин більше 0!")
+                return
+
+        # Збираємо всі дані у єдину структуру (включаючи назву компанії)
+        new_config = {
+            "company_name": company_text,
+            "mode": mode,
+            "custom_minutes": custom_mins
+        }
+
+        try:
+            # Запис відбувається по мережевому шляху, прописаному в нашому .env
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(new_config, f, ensure_ascii=False, indent=4)
+            QMessageBox.information(self, "Успіх",
+                                    "Глобальні налаштування комплексу успішно оновлено для всієї мережі!")
+        except Exception as e:
+            QMessageBox.critical(self, "Помилка", f"Не вдалося записати файл конфігурації: {e}")
+
     def build_about_page(self):
+        """ПОВЕРНЕНО В КОД: Сторінка інформації про програму та логотипу."""
         base_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(base_dir, "icon.png")
         page = QWidget()
@@ -494,13 +579,13 @@ class ArmAdminWindow(BaseArmWindow):
             logo.setPixmap(
                 pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         else:
-            logo.setText("Логотип не знайдено\n(Перевірте файл icon.png)")
+            logo.setText("🏢")
             logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            logo.setStyleSheet("font-size: 16px; color: #FF5555;")
+            logo.setStyleSheet("font-size: 80px;")
 
         layout.addWidget(logo, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        name = QLabel("Система управління комунальним підприємством")
+        name = QLabel("Система управління комунальним підприємством 'СКАМ'")
         name.setStyleSheet("font-size: 22px; font-weight: bold; color: #8B5CF6; margin-top: 15px;")
         layout.addWidget(name, alignment=Qt.AlignmentFlag.AlignCenter)
 
@@ -508,7 +593,6 @@ class ArmAdminWindow(BaseArmWindow):
         version.setStyleSheet("font-size: 14px;")
         layout.addWidget(version, alignment=Qt.AlignmentFlag.AlignCenter)
         return page
-
     def init_static_table_filters(self):
         try:
             all_roles = [r["name"] for r in us.get_all_roles()]
