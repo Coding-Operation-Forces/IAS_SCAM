@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QTableWidget, QHeaderView, QTextEdit, QCompleter, QMenu,
                              QFormLayout, QGroupBox, QScrollArea, QMessageBox, QTableWidgetItem, QLineEdit, QDialog)
-from PyQt6.QtCore import Qt, QTimer, QStringListModel, QPoint
+from PyQt6.QtCore import Qt, QTimer, QStringListModel, QPoint, QUrl
 from PyQt6.QtGui import QColor
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
@@ -459,7 +459,7 @@ class ArmWorkerWindow(BaseArmWindow):
             </body>
             </html>
             """
-            self.web_map.setHtml(html_content)
+            self.web_map.setHtml(html_content, QUrl("http://localhost"))
             self.map_window.pending_focus_id = req_id
             self.web_map.loadFinished.connect(self._on_external_map_loaded)
             

@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from sqlalchemy import text, create_engine
 from sqlalchemy.schema import CreateTable
 from db.database import engine, Base, SessionLocal
-import db.models  # Імпортуємо моделі для реєстрації в Base
 
 # Завантажуємо змінні оточення для доступу до SHARED_BACKUP_CONFIG
 load_dotenv()
@@ -43,10 +42,19 @@ def check_db_status() -> bool:
 
 
 def get_disk_usage_percent() -> int:
-    """Повертає реальний відсоток зайнятого місця на поточному диску."""
+    """Повертає реальний відсоток зайнятого місця на диску СЕРВЕРА (де розташована папка BackSet)."""
     try:
-        total, used, free = shutil.disk_usage(os.path.abspath("."))
+        # Перевіряємо диск сервера за мережевим шляхом CONFIG_DIR
+        total, used, free = shutil.disk_usage(CONFIG_DIR)
         return int((used / total) * 100)
+    except Exception:
+        return 0
+def get_disk_free_kb() -> int:
+    """Повертає точний обсяг вільного місця на диску СЕРВЕРА в кілобайтах (КБ)."""
+    try:
+        # Зчитуємо байти з сервера та переводимо в КБ (ділимо на 1024)
+        total, used, free = shutil.disk_usage(CONFIG_DIR)
+        return int(free / 1024)
     except Exception:
         return 0
 

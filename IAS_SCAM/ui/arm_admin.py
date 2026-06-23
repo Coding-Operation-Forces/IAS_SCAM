@@ -254,6 +254,12 @@ class ArmAdminWindow(BaseArmWindow):
         progress_lay.addWidget(self.pbar)
         back_lay.addLayout(progress_lay)
 
+        # === НОВЕ ПОЛЕ: Відображення точного вільного місця в КБ під шкалою ===
+        self.lbl_free_space = QLabel("Вільне місце на сервері: Перевірка...")
+        self.lbl_free_space.setStyleSheet("color: #A6ADC8; font-size: 13px; font-weight: 500; margin-top: -5px;")
+        back_lay.addWidget(self.lbl_free_space)
+        # =====================================================================
+
         btn_backup = self.create_action_button("Створити бекап зараз")
         btn_backup.clicked.connect(self.action_run_backup)
         back_lay.addWidget(btn_backup, alignment=Qt.AlignmentFlag.AlignRight)
@@ -821,7 +827,16 @@ class ArmAdminWindow(BaseArmWindow):
             else:
                 self.db_indicator.setText("● Відключено")
                 self.db_indicator.setStyleSheet("color: #FF5555; font-weight: bold;")
+
+            # Оновлюємо шкалу відсотка диска сервера
             self.pbar.setValue(ms.get_disk_usage_percent())
+
+            # === НОВЕ: Оновлюємо точний обсяг вільного місця в КБ з розділювачем пробілів ===
+            free_kb = ms.get_disk_free_kb()
+            formatted_kb = f"{free_kb:,}".replace(",", " ")
+            self.lbl_free_space.setText(f"Вільне місце на сервері: {formatted_kb} КБ")
+            # ===============================================================================
+
         except Exception as e:
             print(f"Помилка таймера моніторингу: {e}")
 
