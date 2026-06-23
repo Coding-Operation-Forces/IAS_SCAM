@@ -1,14 +1,13 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QTableWidget, QHeaderView, QTextEdit, QCompleter, QMenu,
                              QFormLayout, QGroupBox, QScrollArea, QMessageBox, QTableWidgetItem, QLineEdit, QDialog)
-# Видалено QSizePolicy
 from PyQt6.QtCore import Qt, QTimer, QStringListModel, QPoint
 from PyQt6.QtGui import QColor
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 from ui.base_arm import BaseArmWindow, StyledComboBox
 from services import worker_service, dictionary_service
-from services.api_service import AddressSearchThread
+from services.api_service import AddressSearchThread, load_geo_cache
 
 class ArmWorkerWindow(BaseArmWindow):
     def __init__(self, user_id=None):
@@ -297,7 +296,6 @@ class ArmWorkerWindow(BaseArmWindow):
             self.requests_table.insertRow(row_idx)
             bg_color = self.get_criticality_color(row_data["criticality"])
             
-            # ФРОНТЕНД ВІДПОВІДАЄ ЗА ФОРМАТУВАННЯ:
             request_time = row_data["request_date"].strftime("%d.%m.%Y %H:%M") if row_data.get("request_date") else ""
             comp_time = row_data["completion_date"].strftime("%d.%m.%Y %H:%M") if row_data.get("completion_date") else ""
             applicant = f"{row_data['applicant_last']} {row_data['applicant_first']}".strip() or "Невідомо"
@@ -372,6 +370,7 @@ class ArmWorkerWindow(BaseArmWindow):
             self.web_map = QWebEngineView()
             map_layout.addWidget(self.web_map)
             
+            # Оновлений HTML код із вбудованою логікою використання кешу
             html_content = """
             <!DOCTYPE html>
             <html>
@@ -415,37 +414,46 @@ class ArmWorkerWindow(BaseArmWindow):
                         }
                     }
                     
-                    function addMarker(id, display_addr, search_addr, status, criticality, issue_type, desc, applicant, time, crew) {
-                        var query = encodeURIComponent(search_addr + ", Київ, Україна");
-                        fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + query)
-                            .then(res => res.json())
-                            .then(data => {
-                                if(data.length > 0) {
-                                    var lat = data[0].lat; var lon = data[0].lon;
-                                    var color = "blue"; var crit = criticality.toLowerCase();
-                                    if (crit.includes("критич")) color = "red";
-                                    else if (crit.includes("висок")) color = "orange";
-                                    else if (crit.includes("низьк")) color = "green";
-                                    
-                                    var customIcon = L.icon({
-                                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-' + color + '.png',
-                                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                                        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
-                                    });
+                    function addMarker(id, display_addr, search_addr, status, criticality, issue_type, desc, applicant, time, crew, lat, lon) {
+                        var color = "blue"; var crit = String(criticality).toLowerCase();
+                        if (crit.includes("критич")) color = "red";
+                        else if (crit.includes("висок")) color = "orange";
+                        else if (crit.includes("низьк")) color = "green";
+                        
+                        var customIcon = L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-' + color + '.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
+                        });
 
-                                    var popupContent = `<div class="popup-custom"><h4>Заявка #${id}</h4><b>📅 Час:</b> ${time}<br><b>📍 Адреса:</b> ${display_addr}<br><b>👤 Заявник:</b> ${applicant}<br><b>⚠️ Тип:</b> ${issue_type}<br><div class="desc-box"><b>📝 Опис:</b> ${desc}</div><hr style='margin:8px 0;border:0;border-top:1px solid #ddd;'><b>🛠 Статус:</b> ${status}<br><b>👷 Виконавець:</b> ${crew}</div>`;
-                                    var m = L.marker([lat, lon], {icon: customIcon}).addTo(map).bindPopup(popupContent);
-                                    markers[String(id)] = m;
-                                    
-                                    if (String(id) === focusTargetId) {
-                                        map.flyTo([lat, lon], 16, {
-                                            animate: true,
-                                            duration: 1.5
-                                        });
-                                        m.openPopup();
+                        var popupContent = `<div class="popup-custom"><h4>Заявка #${id}</h4><b>📅 Час:</b> ${time}<br><b>📍 Адреса:</b> ${display_addr}<br><b>👤 Заявник:</b> ${applicant}<br><b>⚠️ Тип:</b> ${issue_type}<br><div class="desc-box"><b>📝 Опис:</b> ${desc}</div><hr style='margin:8px 0;border:0;border-top:1px solid #ddd;'><b>🛠 Статус:</b> ${status}<br><b>👷 Виконавець:</b> ${crew}</div>`;
+                        
+                        // Внутрішня функція для малювання після того як координати відомі
+                        function drawPin(markerLat, markerLon) {
+                            var m = L.marker([markerLat, markerLon], {icon: customIcon}).addTo(map).bindPopup(popupContent);
+                            markers[String(id)] = m;
+                            
+                            if (String(id) === focusTargetId) {
+                                map.flyTo([markerLat, markerLon], 16, { animate: true, duration: 1.5 });
+                                m.openPopup();
+                            }
+                        }
+
+                        // Якщо Python передав координати з кешу - малюємо миттєво
+                        if (lat !== null && lon !== null) {
+                            drawPin(lat, lon);
+                        } else {
+                            // Якщо адреса нова і в кеші її немає - робимо запит
+                            var query = encodeURIComponent(search_addr + ", Київ, Україна");
+                            fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + query)
+                                .then(res => res.json())
+                                .then(data => {
+                                    if(data.length > 0) {
+                                        drawPin(data[0].lat, data[0].lon);
                                     }
-                                }
-                            });
+                                })
+                                .catch(err => console.error("Помилка геокодування:", err));
+                        }
                     }
                 </script>
             </body>
@@ -478,15 +486,27 @@ class ArmWorkerWindow(BaseArmWindow):
         def escape_js(text):
             return str(text or "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"').replace("\n", " ").replace("\r", "")
 
+        # Читаємо кеш один раз перед циклом
+        geo_cache = load_geo_cache()
+
         for row in data:
             if row["status"] != "Виконано" and row["status"] != "Скасовано":
                 display_addr = f"{row['street'] or ''}, кв. {row['apartment'] or ''}".strip(", ")
                 search_addr = row["street"].strip()
+                search_addr_lower = search_addr.lower()
+                
+                # Перевіряємо чи є ця адреса у geo_cache.json
+                lat, lon = "null", "null"
+                if search_addr_lower in geo_cache:
+                    lat = geo_cache[search_addr_lower][0]
+                    lon = geo_cache[search_addr_lower][1]
+                
                 request_time = row["request_date"].strftime("%d.%m.%Y %H:%M") if row.get("request_date") else ""
                 applicant = f"{row['applicant_last']} {row['applicant_first']}".strip() or "Невідомо"
                 crew_num = f"Бригада №{row['crew_number']}" if row['crew_number'] else "Не призначено"
 
-                js = f"if(typeof addMarker==='function') addMarker('{row['id']}','{escape_js(display_addr)}','{escape_js(search_addr)}','{escape_js(row['status'])}','{escape_js(row['criticality'])}','{escape_js(row['issue_type'])}','{escape_js(row['description'])}','{escape_js(applicant)}','{escape_js(request_time)}','{escape_js(crew_num)}');"
+                # Передаємо lat та lon як останні параметри (без лапок, бо це числа або null)
+                js = f"if(typeof addMarker==='function') addMarker('{row['id']}','{escape_js(display_addr)}','{escape_js(search_addr)}','{escape_js(row['status'])}','{escape_js(row['criticality'])}','{escape_js(row['issue_type'])}','{escape_js(row['description'])}','{escape_js(applicant)}','{escape_js(request_time)}','{escape_js(crew_num)}', {lat}, {lon});"
                 self.web_map.page().runJavaScript(js)
 
     def show_table_context_menu(self, pos: QPoint):
@@ -771,7 +791,6 @@ class ArmWorkerWindow(BaseArmWindow):
         self.works_table.setRowCount(0)
         data = worker_service.get_used_materials_report()
         for row in data: 
-            # ФРОНТЕНД ВІДПОВІДАЄ ЗА ФОРМАТУВАННЯ:
             formatted_row = [
                 str(row["id"]), 
                 f"Заявка #{row['request_id']}", 
