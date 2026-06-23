@@ -707,8 +707,9 @@ class ArmWorkerWindow(BaseArmWindow):
         self.address_thread.search(self.input_address.text().strip())
 
     def update_address_completer(self, results):
+        # Завжди оновлюємо список (навіть якщо він порожній, щоб стерти старі дані)
+        self.completer_model.setStringList(results)
         if results:
-            self.completer_model.setStringList(results)
             self.address_completer.complete()
 
     def update_issue_types(self, cat):

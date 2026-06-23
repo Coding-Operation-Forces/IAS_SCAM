@@ -44,6 +44,28 @@ class AddressSearchThread(QThread):
             
         print(f"🔍 Шукаю адресу: {self.query}")
         
+        # --- НОВИЙ БЛОК: ШВИДКИЙ ПОШУК ПО ЛОКАЛЬНОМУ КЕШУ ---
+        cache = load_geo_cache()
+        # Розбиваємо введений запит на окремі слова (наприклад, "Іваш")
+        query_words = [w for w in self.query.lower().replace(',', ' ').split() if len(w) > 2]
+        
+        if query_words:
+            local_matches = []
+            for cached_street in cache.keys():
+                # Перевіряємо, чи всі введені слова є в назві вулиці з кешу
+                if all(word in cached_street for word in query_words):
+                    # Робимо кожне слово з великої літери для краси (вулиця ярослава івашкевича -> Вулиця Ярослава Івашкевича)
+                    formatted_street = " ".join(w.capitalize() for w in cached_street.split())
+                    local_matches.append(formatted_street)
+            
+            # Якщо знайшли збіги в локальному файлі — миттєво віддаємо їх і ЗУПИНЯЄМОСЬ!
+            if local_matches:
+                print(f"⚡ Знайдено в локальному кеші: {local_matches}")
+                self.results_ready.emit(local_matches[:8])
+                return 
+        # ----------------------------------------------------
+        
+        # Якщо в кеші нічого не знайшли — йдемо в інтернет
         try:
             url = f"https://nominatim.openstreetmap.org/search?q={self.query}, Київ&format=json&addressdetails=1&limit=8"
             headers = {'User-Agent': 'SkamCommunalApp/1.1'}
@@ -58,11 +80,7 @@ class AddressSearchThread(QThread):
                     return
 
                 results = []
-                cache = load_geo_cache()
                 cache_updated = False
-                
-                # Розбиваємо те, що ввів користувач, на слова (більше 2 літер)
-                query_words = [w for w in self.query.lower().replace(',', ' ').split() if len(w) > 2]
                 
                 for item in data:
                     osm_class = item.get('class', '')
@@ -71,14 +89,11 @@ class AddressSearchThread(QThread):
 
                     addr = item.get('address', {})
                     road = addr.get('road', '')
-                    house = addr.get('house_number', '') or addr.get('building', '')
                     lat = float(item.get('lat', 0))
                     lon = float(item.get('lon', 0))
                     
                     if road:
                         res = f"{road}"
-                        if house: res += f", {house}" # Формуємо з будинком для зручності у підказках
-                        
                         res_lower = res.lower()
                         
                         is_relevant = False
@@ -93,10 +108,9 @@ class AddressSearchThread(QThread):
                         if is_relevant and res not in results:
                             results.append(res)
                             
-                            # 👇 ЗБЕРІГАЄМО В КЕШ ТІЛЬКИ НАЗВУ ВУЛИЦІ (БЕЗ БУДИНКУ)
-                            road_lower = road.lower()
-                            if road_lower not in cache:
-                                cache[road_lower] = [lat, lon]
+                            # Зберігаємо в кеш
+                            if res_lower not in cache:
+                                cache[res_lower] = [lat, lon]
                                 cache_updated = True
                 
                 if cache_updated:
