@@ -13,18 +13,18 @@ def load_geo_cache():
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"❌ Помилка читання кешу: {e}")
+            print(f"Помилка читання кешу: {e}")
     else:
-        print(f"⚠️ Файл кешу не знайдено за шляхом: {CACHE_FILE}. Створимо новий.")
+        print(f"Файл кешу не знайдено за шляхом: {CACHE_FILE}. Створимо новий.")
     return {}
 
 def save_geo_cache(cache_data):
     try:
         with open(CACHE_FILE, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, ensure_ascii=False, indent=4)
-        print(f"✅ Кеш успішно оновлено! Тепер у базі {len(cache_data)} адрес.")
+        print(f"Кеш успішно оновлено! Тепер у базі {len(cache_data)} адрес.")
     except Exception as e:
-        print(f"❌ Помилка збереження кешу: {e}")
+        print(f"Помилка збереження кешу: {e}")
 
 class AddressSearchThread(QThread):
     results_ready = pyqtSignal(list)
@@ -75,7 +75,7 @@ class AddressSearchThread(QThread):
                 data = response.json()
                 
                 if not data:
-                    print(f"⚠️ OpenStreetMap нічого не знайшов для запиту: {self.query}")
+                    print(f"OpenStreetMap нічого не знайшов для запиту: {self.query}")
                     self.results_ready.emit([])
                     return
 
@@ -118,8 +118,8 @@ class AddressSearchThread(QThread):
                     
                 self.results_ready.emit(results)
             else:
-                print(f"❌ Помилка API. Код статусу: {response.status_code}")
+                print(f"Помилка API. Код статусу: {response.status_code}")
                 self.results_ready.emit([])
         except Exception as e:
-            print(f"❌ Критична помилка API адрес: {e}")
+            print(f"Критична помилка API адрес: {e}")
             self.results_ready.emit([])
