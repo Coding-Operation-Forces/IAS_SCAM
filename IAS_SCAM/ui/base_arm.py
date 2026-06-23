@@ -2,26 +2,21 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame, QApplication,
                              QTableWidget, QLineEdit, QComboBox, QTextEdit, QGroupBox,
                              QTabWidget, QTableWidgetItem)
-from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, QPoint
+from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, QPoint, QTimer
 from PyQt6.QtGui import QIcon, QPainter, QPen, QColor
 import os
 
 
 class StyledComboBox(QComboBox):
-    """QComboBox з власною сучасною chevron-стрілкою (малюється через paintEvent)."""
-
     arrow_color = QColor("#CDD6F4")
     accent_color = QColor("#8B5CF6")
 
     def paintEvent(self, event):
-        # 1. Стандартний рендер (фон, рамка, текст) — через QSS
         super().paintEvent(event)
 
-        # 2. Поверх малюємо свій chevron
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Колір: фіолетовий при hover/відкритті, інакше звичайний
         if self.underMouse() or self.view().isVisible():
             color = self.accent_color
         else:
@@ -32,7 +27,6 @@ class StyledComboBox(QComboBox):
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
-        # Зона стрілки — праві 32px
         rx = self.width() - 32
         cx = rx + 16
         cy = self.height() // 2
@@ -43,14 +37,7 @@ class StyledComboBox(QComboBox):
         painter.end()
 
 
-
 class BaseArmWindow(QWidget):
-    """
-    Базовий клас АРМ-вікна.
-    ВАЖЛИВО: Замість QComboBox використовуйте StyledComboBox —
-    тільки він малює сучасну chevron-стрілку.
-    Приклад: cb = StyledComboBox(parent)
-    """
     def __init__(self, title):
         super().__init__()
         self.title_text = title
@@ -152,9 +139,6 @@ class BaseArmWindow(QWidget):
 
         self.apply_theme()
 
-    # ==========================================
-    # ВІДКРИТТЯ ВІКНА ДОВІДКИ (ГАРАНТОВАНИЙ ЗАХИСТ ВІД 0xC0000409)
-    # ==========================================
     def show_help_window(self):
         from ui.help import HelpWindow
 
@@ -212,44 +196,49 @@ class BaseArmWindow(QWidget):
         else:
             return {"Довідка": "<p>Універсальна довідка</p>"}
 
-    # ==========================================
-    # СИСТЕМА ФІЛЬТРАЦІЇ ДЛЯ ТАБЛИЦЬ
-    # ==========================================
     def create_table_filters(self, table, filter_options=None):
-        """
-        filter_options: словник, де ключ — це номер колонки (int),
-        а значення — список варіантів для випадаючого списку (list).
-        """
         filter_options = filter_options or {}
         filter_widget = QWidget()
         filter_layout = QHBoxLayout(filter_widget)
-        filter_layout.setContentsMargins(0, 0, 0, 5)
-        filter_layout.setSpacing(8)
+        filter_layout.setContentsMargins(0, 0, 0, 2)
+        filter_layout.setSpacing(0)
 
-        inputs = []
+        self.filter_inputs = []
+        
+        self.corner_spacer = QWidget()
+        filter_layout.addWidget(self.corner_spacer)
+
         for col in range(table.columnCount()):
             header_item = table.horizontalHeaderItem(col)
             header_text = header_item.text() if header_item else f"Колонка {col + 1}"
-
-            # Виправляємо текст заголовка ДО використання в f-рядку
             clean_header = header_text.replace('\n', ' ')
 
             if col in filter_options:
-                # Створюємо випадаючий список
                 cb = StyledComboBox()
-                cb.addItem("🔍 Всі")
+                cb.setFixedHeight(26)
+                cb.addItem("Всі")
                 cb.addItems(filter_options[col])
+                cb.setProperty("is_filter", "true")
                 filter_layout.addWidget(cb)
-                inputs.append((col, cb))
-                cb.currentTextChanged.connect(lambda text, t=table, ins=inputs: self.filter_table(t, ins))
+                self.filter_inputs.append((col, cb))
+                cb.currentTextChanged.connect(lambda text, t=table, ins=self.filter_inputs: self.filter_table(t, ins))
             else:
-                # Старий метод із безпечним f-рядком
                 le = QLineEdit()
-                le.setPlaceholderText(f"🔍 {clean_header}")
+                le.setFixedHeight(26)
+                le.setPlaceholderText(f"{clean_header}")
                 le.setProperty("is_filter", "true")
                 filter_layout.addWidget(le)
-                inputs.append((col, le))
-                le.textChanged.connect(lambda text, t=table, ins=inputs: self.filter_table(t, ins))
+                self.filter_inputs.append((col, le))
+                le.textChanged.connect(lambda text, t=table, ins=self.filter_inputs: self.filter_table(t, ins))
+
+        def sync_widths():
+            v_header_width = table.verticalHeader().width()
+            self.corner_spacer.setFixedWidth(v_header_width)
+            for c, widget in self.filter_inputs:
+                widget.setFixedWidth(table.columnWidth(c))
+
+        table.horizontalHeader().sectionResized.connect(sync_widths)
+        QTimer.singleShot(100, sync_widths)
 
         return filter_widget
 
@@ -257,16 +246,20 @@ class BaseArmWindow(QWidget):
         for row in range(table.rowCount()):
             match = True
             for col, widget in inputs:
-                # Перевіряємо, чи це QComboBox чи QLineEdit
                 if isinstance(widget, QComboBox):
                     filter_text = widget.currentText().lower().strip()
-                    if filter_text == "🔍 всі": filter_text = ""
+                    if filter_text == "всі": filter_text = ""
                 else:
                     filter_text = widget.text().lower().strip()
 
                 if filter_text:
-                    item = table.item(row, col)
-                    item_text = item.text().lower() if item else ""
+                    cell_widget = table.cellWidget(row, col)
+                    if isinstance(cell_widget, QComboBox):
+                        item_text = cell_widget.currentText().lower()
+                    else:
+                        item = table.item(row, col)
+                        item_text = item.text().lower() if item else ""
+                        
                     if filter_text not in item_text:
                         match = False
                         break
@@ -455,7 +448,6 @@ class BaseArmWindow(QWidget):
         for tab in self.findChildren(QTabWidget):
             tab.setStyleSheet(tab_style)
 
-        # СТИЛІ ДЛЯ ПОЛІВ ВВОДУ, COMBOBOX (з сучасною SVG-стрілочкою) І TEXTEDIT
         input_style = f"""
             QLineEdit, QTextEdit {{ 
                 background-color: {input_bg}; 
@@ -472,11 +464,12 @@ class BaseArmWindow(QWidget):
                 color: {placeholder_color}; 
             }}
 
+            /* --- ОНОВЛЕНО ДЛЯ ТЕКСТОВИХ ФІЛЬТРІВ --- */
             QLineEdit[is_filter="true"] {{
                 background-color: {input_bg};
                 border: 1px solid {border_color};
-                border-radius: 6px;
-                padding: 6px 10px;
+                border-radius: 0px; 
+                padding: 2px 4px;
                 font-size: 13px;
                 color: {text_color};
             }}
@@ -484,7 +477,6 @@ class BaseArmWindow(QWidget):
                 border: 1px solid {accent_color};
             }}
 
-            /* ── СУЧАСНИЙ COMBOBOX ── */
             QComboBox {{
                 background-color: {input_bg};
                 color: {text_color};
@@ -499,7 +491,14 @@ class BaseArmWindow(QWidget):
             QComboBox:hover {{
                 border: 1px solid {accent_color};
             }}
-            /* Зона стрілки — прозора, стрілку малює QProxyStyle */
+            
+            /* --- ДОДАНО ДЛЯ ВИПАДАЮЧИХ ФІЛЬТРІВ --- */
+            QComboBox[is_filter="true"] {{
+                border-radius: 0px;
+                padding: 2px 20px 2px 4px;
+                font-size: 13px;
+            }}
+
             QComboBox::drop-down {{
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
@@ -509,14 +508,12 @@ class BaseArmWindow(QWidget):
                 border-bottom-right-radius: 6px;
                 background: transparent;
             }}
-            /* Прибираємо стандартну стрілку Qt повністю */
             QComboBox::down-arrow {{
                 width: 0px;
                 height: 0px;
                 image: none;
             }}
 
-            /* Список елементів */
             QComboBox QAbstractItemView {{ 
                 background-color: {input_bg}; 
                 color: {text_color}; 
@@ -543,12 +540,11 @@ class BaseArmWindow(QWidget):
         for w in self.findChildren(QLineEdit) + self.findChildren(QTextEdit):
             w.setStyleSheet(input_style)
 
-        # Застосовуємо CSS + оновлюємо кольори стрілки для StyledComboBox
         StyledComboBox.arrow_color = QColor(arrow_color)
         combo_style_str = input_style
         for cb in self.findChildren(QComboBox):
             cb.setStyleSheet(combo_style_str)
-            cb.update()  # перемалювати chevron одразу
+            cb.update()
 
         for gb in self.findChildren(QGroupBox):
             gb.setStyleSheet(
@@ -574,7 +570,6 @@ class BaseArmWindow(QWidget):
             QLabel {{ color: {text_color}; }} 
             QScrollArea {{ background: transparent; border: none; }}
 
-            /* СУЧАСНІ СКРОЛБАРИ */
             QScrollBar:vertical {{
                 border: none; background: {scroll_bg}; width: 10px; border-radius: 5px; margin: 0px;
             }}

@@ -1,215 +1,216 @@
 # services/worker_service.py
+import re
 from datetime import datetime
 from db.database import SessionLocal
 from db.models import (Requests, Applicants, RequestDetails, 
-                       IssueType, Category, CriticalityLevels, Status, Materials, Crew)
+                       IssueType, Category, Status, Materials, StatusHistory) 
 
-# ==========================================
-# 1. ПРИЙОМ ЗАЯВОК (Зчитування)
-# ==========================================
-def get_active_requests():
-    """Отримує список всіх звернень для таблиці разом з описом та ID бригади."""
+def get_active_requests(show_all=False):
     with SessionLocal() as db:
         try:
-            requests = db.query(Requests).order_by(Requests.request_date.desc()).all()
+            query = db.query(Requests)
+            
+            if not show_all:
+                query = query.join(Status).filter(
+                    ~Status.status_name.ilike("%Виконано%"), 
+                    ~Status.status_name.ilike("%Скасовано%")
+                )
+                
+            requests = query.all()
+            
+            def request_sorting_key(r):
+                s_name = r.status.status_name.lower() if r.status else ""
+                c_name = r.criticality.level_name.lower() if r.criticality else ""
+                
+                if "нова" in s_name: s_weight = 1
+                elif "робот" in s_name: s_weight = 2
+                else: s_weight = 3
+                
+                if "критич" in c_name: c_weight = 1
+                elif "висок" in c_name: c_weight = 2
+                elif "середн" in c_name: c_weight = 3
+                else: c_weight = 4
+                
+                return (s_weight, c_weight, -(r.request_date.timestamp() if r.request_date else 0))
+
+            requests.sort(key=request_sorting_key)
+            
             result = []
             for r in requests:
-                applicant = f"{r.applicant.last_name} {r.applicant.first_name}" if r.applicant else "Невідомо"
-                address = f"{r.street or ''}, кв. {r.apartment or ''}".strip(", ")
-                if not address: address = "Не вказано"
-                
-                issue_type = r.issue_type.type_name if r.issue_type else "Не визначено"
-                criticality = r.criticality.level_name if r.criticality else "Не визначено"
-                status = r.status.status_name if r.status else "Нова"
-                crew_num = f"Бригада №{r.crew.crew_number}" if r.crew else "Не призначено"
-                
-                request_time = r.request_date.strftime("%d.%m.%Y %H:%M") if r.request_date else ""
-                
-                result.append([
-                    r.id_request,                  # 0
-                    request_time,                  # 1
-                    applicant,                     # 2
-                    address,                       # 3
-                    issue_type,                    # 4
-                    criticality,                   # 5
-                    status,                        # 6
-                    crew_num,                      # 7
-                    r.description or "Немає опису",# 8 -> НОВИЙ СТОВПЕЦЬ ОПИСУ
-                    r.channel or "-",              # 9
-                    r.crew_id                      # 10 -> Прихований ID бригади для UI
-                ])
+                # ПЕРЕНЕСЕНО НА ФРОНТЕНД: Форматування дат, адрес та назв
+                # Бекенд тепер повертає структуровані чисті дані
+                result.append({
+                    "id": r.id_request,
+                    "request_date": r.request_date,
+                    "completion_date": r.completion_date,
+                    "applicant_last": r.applicant.last_name if r.applicant else "",
+                    "applicant_first": r.applicant.first_name if r.applicant else "",
+                    "street": r.street or "",
+                    "apartment": r.apartment or "",
+                    "issue_type": r.issue_type.type_name if r.issue_type else "Не визначено",
+                    "criticality": r.criticality.level_name if r.criticality else "Не визначено",
+                    "status": r.status.status_name if r.status else "Нова",
+                    "crew_number": r.crew.crew_number if r.crew else None,
+                    "description": r.description or "Немає опису",
+                    "channel": r.channel or "-",
+                    "crew_id": r.crew_id
+                })
             return result
         except Exception as e:
             print(f"Помилка завантаження заявок: {e}")
             return []
 
-# ==========================================
-# МОДИФІКАЦІЯ: МАСОВЕ ОНОВЛЕННЯ ДАНИХ ЗАЯВКИ (СТАТУС + БРИГАДА)
-# ==========================================
-def update_requests_data(updates):
-    """
-    Масово оновлює статуси та призначені бригади для заявок.
-    updates - це список словників: [{'req_id': 1, 'status_id': 3, 'crew_id': 2}, ...]
-    """
-    if not updates:
-        return True, "Немає змін для збереження."
-        
+def update_requests_data(updates, current_user_id=None):
+    if not updates: return True, "Немає змін."
     with SessionLocal() as db:
         try:
             for u in updates:
                 req = db.query(Requests).filter(Requests.id_request == u['req_id']).first()
                 if req:
-                    if 'status_id' in u:
+                    if 'status_id' in u: 
                         req.status_id = u['status_id']
-                    if 'crew_id' in u:
-                        # Якщо обрано 0 (значення "Не призначено"), записуємо NULL (None)
-                        req.crew_id = u['crew_id'] if u['crew_id'] != 0 else None
+                        
+                        status_obj = db.query(Status).filter(Status.id_status == u['status_id']).first()
+                        if status_obj and "виконано" in status_obj.status_name.lower():
+                            if not req.completion_date:
+                                req.completion_date = datetime.now()
+                        else:
+                            req.completion_date = None
+                            
+                        history_entry = StatusHistory(
+                            request_id=req.id_request,
+                            status_id=u['status_id'],
+                            user_id=current_user_id,
+                            change_date=datetime.now()
+                        )
+                        db.add(history_entry)
+                            
+                    if 'crew_id' in u: req.crew_id = u['crew_id'] if u['crew_id'] != 0 else None
             db.commit()
-            return True, "Зміни (статуси та бригади) успішно збережено в базі!"
+            return True, "Зміни успішно збережено в базі!"
         except Exception as e:
             db.rollback()
-            return False, f"Помилка оновлення бази даних: {str(e)}"
+            return False, f"Помилка бази даних: {str(e)}"
 
-
-# ==========================================
-# 2. РЕЄСТРАЦІЯ ЗВЕРНЕНЬ (Створення)
-# ==========================================
 def get_applicant_by_account(account_number):
-    """Шукає заявника за особовим рахунком."""
     with SessionLocal() as db:
         try:
             applicant = db.query(Applicants).filter(Applicants.account_number == account_number).first()
             if applicant:
+                full_street = applicant.street or ""
+                if applicant.house_number:
+                    full_street += f" {applicant.house_number}"
                 return {
-                    "found": True,
-                    "applicant_id": applicant.id_applicant,
-                    "lname": applicant.last_name or "",
-                    "fname": applicant.first_name or "",
-                    "mname": applicant.patronymic or "",
-                    "phone": applicant.phone or "",
-                    "email": applicant.email or "",
-                    "street": applicant.street or "",
-                    "apartment": applicant.apartment or "",
-                    "floor": str(applicant.floor) if applicant.floor else ""
+                    "found": True, "applicant_id": applicant.id_applicant,
+                    "lname": applicant.last_name or "", "fname": applicant.first_name or "",
+                    "mname": applicant.patronymic or "", "phone": applicant.phone or "",
+                    "email": applicant.email or "", "street": full_street.strip(),
+                    "apartment": applicant.apartment or "", 
+                    "floor": str(applicant.floor) if applicant.floor else "",
+                    "entrance": str(applicant.entrance) if applicant.entrance else ""
                 }
             return {"found": False}
         except Exception as e:
-            print(f"Помилка пошуку за рахунком: {e}")
             return {"found": False}
 
 def register_new_request(app_data, req_data):
-    """Створює заявку, за необхідності створюючи нового заявника."""
     with SessionLocal() as db:
         try:
             floor_val = int(app_data["floor"]) if app_data["floor"].isdigit() else None
+            entrance_val = int(app_data["entrance"]) if app_data.get("entrance", "").isdigit() else None
+            
+            full_address = app_data["street"].strip()
+            match = re.search(r'[, ]+(\d+[-/a-zA-Zа-яА-ЯіІїЇєЄ]*)$', full_address)
+            if match:
+                house_number = match.group(1)
+                street = full_address[:match.start()].strip(', ')
+            else:
+                street = full_address
+                house_number = ""
 
             applicant_id = app_data.get("applicant_id")
             if not applicant_id:
                 new_applicant = Applicants(
-                    account_number=app_data["account"],
-                    last_name=app_data["lname"],
-                    first_name=app_data["fname"],
-                    patronymic=app_data["mname"],
-                    phone=app_data["phone"],
-                    email=app_data["email"],
-                    street=app_data["street"],
-                    apartment=app_data["apartment"],
-                    floor=floor_val
+                    account_number=app_data["account"], last_name=app_data["lname"],
+                    first_name=app_data["fname"], patronymic=app_data["mname"],
+                    phone=app_data["phone"], email=app_data["email"],
+                    city="Київ",
+                    street=street, house_number=house_number, 
+                    entrance=entrance_val, apartment=app_data["apartment"], floor=floor_val
                 )
                 db.add(new_applicant)
                 db.flush()
                 applicant_id = new_applicant.id_applicant
 
             default_status = db.query(Status).filter(Status.status_name.ilike("%Нова%")).first()
-            if not default_status:
-                default_status = db.query(Status).first()
-                
-            if not default_status:
-                db.rollback()
-                return False, "У системі не налаштовано довідник статусів! Заповніть таблицю 'status'."
+            if not default_status: default_status = db.query(Status).first()
+            if not default_status: return False, "У системі не налаштовано довідник статусів!"
 
-            status_id = default_status.id_status
+            current_user_id = req_data.get("user_id")
 
             new_request = Requests(
-                request_date=datetime.now(),
-                applicant_id=applicant_id,
-                issue_type_id=req_data["issue_type_id"],
-                criticality_id=req_data["criticality_id"],
-                status_id=status_id,
-                channel=req_data["channel"],
-                description=req_data["description"],
-                street=app_data["street"],
-                apartment=app_data["apartment"],
-                floor=floor_val
+                request_date=datetime.now(), applicant_id=applicant_id,
+                issue_type_id=req_data["issue_type_id"], criticality_id=req_data["criticality_id"],
+                status_id=default_status.id_status, channel=req_data["channel"],
+                description=req_data["description"], 
+                city="Київ",
+                street=street, house_number=house_number,
+                entrance=entrance_val, apartment=app_data["apartment"], floor=floor_val,
+                user_id=current_user_id
             )
             db.add(new_request)
+            db.flush() 
+            
+            first_history = StatusHistory(
+                request_id=new_request.id_request,
+                status_id=default_status.id_status,
+                user_id=current_user_id,
+                change_date=datetime.now()
+            )
+            db.add(first_history)
+            
             db.commit()
             return True, "Заявку успішно зареєстровано!"
         except Exception as e:
             db.rollback()
-            return False, f"Помилка бази даних: {str(e)}"
+            return False, f"Помилка: {str(e)}"
 
-# ==========================================
-# 3. ВИКОНАННЯ РОБІТ ТА СПИСАННЯ
-# ==========================================
 def get_used_materials_report():
-    """Повертає список вже списаних матеріалів (RequestDetails)."""
     with SessionLocal() as db:
         try:
             records = db.query(RequestDetails).order_by(RequestDetails.id_detail.desc()).all()
-            return [
-                [
-                    r.id_detail, 
-                    f"Заявка #{r.request_id}", 
-                    r.material.material_name if r.material else "Невідомо", 
-                    f"{r.quantity} {r.material.unit if r.material else ''}", 
-                    f"{float(r.total_cost):.2f} грн"
-                ] for r in records
-            ]
-        except Exception:
-            return []
+            # ПЕРЕНЕСЕНО НА ФРОНТЕНД: Форматування рядків звіту
+            return [{
+                "id": r.id_detail,
+                "request_id": r.request_id,
+                "material_name": r.material.material_name if r.material else "Невідомо",
+                "quantity": r.quantity,
+                "unit": r.material.unit if r.material else "",
+                "total_cost": float(r.total_cost)
+            } for r in records]
+        except Exception: return []
 
 def write_off_material(request_id, material_id, quantity):
-    """Списує матеріал на конкретну заявку (RequestDetails)."""
     with SessionLocal() as db:
         try:
-            request_exists = db.query(Requests).filter(Requests.id_request == request_id).first()
-            if not request_exists:
-                return False, "Заявку з таким ID не знайдено!"
-
+            if not db.query(Requests).filter(Requests.id_request == request_id).first(): return False, "Заявку не знайдено!"
             material = db.query(Materials).filter(Materials.id_material == material_id).first()
-            if not material:
-                return False, "Матеріал не знайдено!"
-
+            if not material: return False, "Матеріал не знайдено!"
             qty_float = float(quantity)
-            total_cost = float(material.price) * qty_float
-
-            usage = RequestDetails(
-                request_id=request_id,
-                material_id=material_id,
-                quantity=qty_float,
-                total_cost=total_cost
-            )
+            usage = RequestDetails(request_id=request_id, material_id=material_id, quantity=qty_float, total_cost=float(material.price) * qty_float)
             db.add(usage)
             db.commit()
-            return True, "Матеріал успішно додано до звіту!"
-        except ValueError:
-            return False, "Некоректний формат кількості!"
-        except Exception as e:
-            db.rollback()
-            return False, f"Помилка БД: {str(e)}"
+            return True, "Матеріал успішно додано!"
+        except Exception as e: return False, f"Помилка: {str(e)}"
 
 def get_issue_mapping():
-    """Генерує словник {Категорія: [(id_типу, Назва_типу), ...]} для динамічних комбобоксів."""
     with SessionLocal() as db:
         try:
             types = db.query(IssueType).join(Category).all()
             mapping = {}
             for t in types:
                 cat_name = t.category.category_name
-                if cat_name not in mapping:
-                    mapping[cat_name] = []
+                if cat_name not in mapping: mapping[cat_name] = []
                 mapping[cat_name].append((t.id_issue_type, t.type_name))
             return mapping
-        except Exception:
-            return {}
+        except Exception: return {}
