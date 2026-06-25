@@ -286,12 +286,19 @@ def write_off_material(request_id, material_id, quantity, user_id=1):
 def get_issue_mapping():
     with SessionLocal() as db:
         try:
-            types = db.query(IssueType).join(Category).all()
+            # Робимо вибірку відштовхуючись від Категорій
+            categories = db.query(Category).outerjoin(IssueType).all()
             mapping = {}
-            for t in types:
-                cat_name = t.category.category_name
-                if cat_name not in mapping: mapping[cat_name] = []
-                mapping[cat_name].append((t.id_issue_type, t.type_name))
+            
+            for c in categories:
+                # Додаємо категорію до словника у будь-якому випадку
+                mapping[c.category_name] = []
+                
+                # Якщо у категорії є типи аварій, додаємо їх у список
+                for t in c.issue_types:
+                    mapping[c.category_name].append((t.id_issue_type, t.type_name))
+                    
             return mapping
-        except Exception:
+        except Exception as e:
+            print(f"Помилка завантаження категорій: {e}")
             return {}
