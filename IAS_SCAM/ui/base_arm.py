@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, QPoint, QTimer
 from PyQt6.QtGui import QIcon, QPainter, QPen, QColor
 import os
+import services.audit_service as audit_service
 
 
 class StyledComboBox(QComboBox):
@@ -288,6 +289,25 @@ class BaseArmWindow(QWidget):
         return le
 
     def perform_logout(self):
+
+        # Визначаємо активного користувача (якщо у вікна є збережений id)
+        # Наприклад, в АРМ Адміна це self.current_admin_id, в АРМ Працівника — self.user_id
+        active_user_id = getattr(self, "current_admin_id", None) or getattr(self, "user_id", None) or 1
+
+        try:
+            # Логуємо дію виходу
+            audit_service.log_action(
+                user_id=active_user_id,
+                event_type="LOGOUT",
+                table_name="users",
+                record_id=active_user_id,
+                old_value="Authorized",
+                new_value="User manually logged out"
+            )
+        except Exception as e:
+            print(f"Не вдалося записати лог виходу: {e}")
+
+        # Твій стандартний код виходу, що вже написаний у base_arm.py:
         from ui.login_window import LoginWindow
         self.login_window = LoginWindow()
         self.login_window.show()

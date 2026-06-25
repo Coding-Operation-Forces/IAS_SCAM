@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from sqlalchemy import text, create_engine
 from sqlalchemy.schema import CreateTable
 from db.database import engine, Base, SessionLocal
+import db.models  # Імпортуємо моделі для реєстрації в Base
 
 # Завантажуємо змінні оточення для доступу до SHARED_BACKUP_CONFIG
 load_dotenv()

@@ -4,9 +4,9 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QTableWidget, QTableWidgetItem,
                              QHeaderView, QLineEdit, QComboBox, QFormLayout,
                              QGroupBox, QTabWidget, QProgressBar, QMessageBox,
-                             QInputDialog, QDialog, QDialogButtonBox)
+                             QInputDialog, QDialog, QDialogButtonBox, QTextEdit)
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QColor
 from ui.base_arm import BaseArmWindow, StyledComboBox
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -14,6 +14,7 @@ from config import APP_VERSION
 import services.user_service as us
 import services.monitoring_service as ms
 import services.dictionary_service as ds
+import services.audit_service as audit_service
 
 
 class DirectoryDialog(QDialog):
@@ -186,8 +187,9 @@ class UserDialog(QDialog):
 
 
 class ArmAdminWindow(BaseArmWindow):
-    def __init__(self):
+    def __init__(self, user_id=1):
         super().__init__("АРМ Адміністратора системи")
+        self.current_admin_id = user_id
         self.setup_menu()
         self.init_static_table_filters()
         self.refresh_all_data()
@@ -453,11 +455,16 @@ class ArmAdminWindow(BaseArmWindow):
         ])
         self.table_audit.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
 
+        # === ДОДАЙ ЦЕЙ РЯДОК ДЛЯ ПЕРЕХОПЛЕННЯ ПОДВІЙНОГО КЛІКУ ===
+        self.table_audit.cellDoubleClicked.connect(self.show_full_audit_value)
+        # =======================================================
+
         self.lay_filter_audit = QVBoxLayout()
         layout.addLayout(self.lay_filter_audit)
         layout.addWidget(self.table_audit)
 
         btn_export = self.create_action_button("Експорт журналу", primary=True)
+        btn_export.clicked.connect(self.action_export_audit_log)
         layout.addWidget(btn_export, alignment=Qt.AlignmentFlag.AlignRight)
         return page
 
@@ -620,6 +627,7 @@ class ArmAdminWindow(BaseArmWindow):
         try:
             self.load_users_data()
             self.load_all_directories()
+            self.load_audit_data()  # <--- ДОДАНО НАШ МЕТОД ЗАВАНТАЖЕННЯ ЛОГІВ
             self.refresh_monitoring_data()
         except Exception as e:
             print(f"Помилка наповнення даних: {e}")
@@ -751,6 +759,120 @@ class ArmAdminWindow(BaseArmWindow):
                     item = table.item(row, col)
                     if item: item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
+    def load_audit_data(self):
+        """Зчитує дані з бази та наповнює таблицю Журналу дій користувачів."""
+        try:
+            # Очищуємо старий фільтр у шарі, щоб він стабільно перемальовувався
+            self.clear_layout(self.lay_filter_audit)
+            self.lay_filter_audit.addWidget(self.create_table_filters(self.table_audit))
+
+            # Беремо масив логів з сервісу
+            logs_data = audit_service.get_all_audit_logs()
+            self.table_audit.setRowCount(0)
+
+            for row_idx, log in enumerate(logs_data):
+                self.table_audit.insertRow(row_idx)
+
+                item_id = QTableWidgetItem(str(log["id"]))
+                item_user = QTableWidgetItem(log["user_name"])
+                item_time = QTableWidgetItem(log["time"])
+                item_event = QTableWidgetItem(log["event"])
+                item_table = QTableWidgetItem(log["table"])
+                item_old = QTableWidgetItem(log["old_val"])
+                item_new = QTableWidgetItem(log["new_val"])
+
+                # Блокуємо клітинки журналу від редагування (адмін може тільки дивитись)
+                for item in (item_id, item_user, item_time, item_event, item_table, item_old, item_new):
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+
+                    # Робимо акцентний колір для типів дій
+                    if log["event"] in ("DELETE", "BLOCK"):
+                        item_event.setForeground(QColor("#FF5555"))  # Червоний для видалення
+                    elif log["event"] in ("INSERT", "ADD"):
+                        item_event.setForeground(QColor("#50FA7B"))  # Зелений для нових записів
+                    elif "PASSWORD" in log["event"]:
+                        item_event.setForeground(QColor("#FFB86C"))  # Помаранчевий для паролів
+
+                self.table_audit.setItem(row_idx, 0, item_id)
+                self.table_audit.setItem(row_idx, 1, item_user)
+                self.table_audit.setItem(row_idx, 2, item_time)
+                self.table_audit.setItem(row_idx, 3, item_event)
+                self.table_audit.setItem(row_idx, 4, item_table)
+                self.table_audit.setItem(row_idx, 5, item_old)
+                self.table_audit.setItem(row_idx, 6, item_new)
+
+        except Exception as e:
+            print(f"Помилка рендеру журналу дій: {e}")
+
+    def action_export_audit_log(self):
+        """Експортує повний вміст таблиці аудиту (включаючи старі та нові значення) у txt файл."""
+        import datetime
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+
+        if self.table_audit.rowCount() == 0:
+            QMessageBox.warning(self, "Увага", "Журнал дій порожній, немає чого експортувати!")
+            return
+
+        # Відкриваємо стандартне вікно збереження файлу Windows
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Зберегти звіт аудиту", f"audit_report_{datetime.date.today()}.txt", "Текстові файли (*.txt)"
+        )
+
+        if not file_path:
+            return  # Користувач скасував збереження
+
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write("=" * 90 + "\n")
+                f.write(f" 📑 ПОВНИЙ ЗВІТ ПРО ДІЇ КОРИСТУВАЧІВ ІНФРАСТРУКТУРИ СКАМ\n")
+                f.write(f" Сформовано: {datetime.datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n")
+                f.write("=" * 90 + "\n\n")
+
+                # Читаємо рядки з таблиці інтерфейсу
+                exported_count = 0
+                for row in range(self.table_audit.rowCount()):
+                    # Перевіряємо, чи рядок не прихований поточним фільтром пошуку адміна
+                    if self.table_audit.isRowHidden(row):
+                        continue
+
+                    log_id = self.table_audit.item(row, 0).text()
+                    user = self.table_audit.item(row, 1).text()
+                    log_time = self.table_audit.item(row, 2).text()
+                    event = self.table_audit.item(row, 3).text()
+                    table_name = self.table_audit.item(row, 4).text()
+                    old_val = self.table_audit.item(row, 5).text()
+                    new_val = self.table_audit.item(row, 6).text()
+
+                    # Формуємо красивий картковий вигляд для кожної події в системі
+                    f.write(f"Запис логу ID: {log_id}\n")
+                    f.write(f"------------------------------------------------------------------------\n")
+                    f.write(f"• Користувач: {user}\n")
+                    f.write(f"• Час події:  {log_time}\n")
+                    f.write(f"• Тип дії:    {event}\n")
+                    f.write(f"• Об'єкт/Поле: {table_name}\n")
+                    f.write(f"• Було (Old):  {old_val}\n")
+                    f.write(f"• Стало (New): {new_val}\n")
+                    f.write(f"========================================================================\n\n")
+
+                    exported_count += 1
+
+                f.write(f"Всього вивантажено записів: {exported_count}\n")
+
+            QMessageBox.information(self, "Успіх",
+                                    f"Журнал дій успішно експортовано!\nВивантажено записів: {exported_count}\n\nФайл: {file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Помилка", f"Не вдалося зберегти звіт: {e}")
+
+    def on_menu_click(self, index, btn):
+        """Перехоплює клік по меню АРМ Адміністратора та оновлює дані сторінки."""
+        # Спочатку виконуємо стандартний перехід на сторінку із base_arm.py
+        super().on_menu_click(index, btn)
+
+        # Індекс 3 — це сторінка "Журнал дій" (рахуємо з нуля: 0, 1, 2, 3)
+        if index == 3:
+            print("[GUI] Перехід на Журнал дій: примусово завантажую логи з БД...")
+            self.load_audit_data()
+
     def action_delete_user(self):
         selected_rows = self.users_table.selectedItems()
         if not selected_rows:
@@ -761,7 +883,8 @@ class ArmAdminWindow(BaseArmWindow):
         reply = QMessageBox.question(self, "Підтвердження", "Ви впевнені, що хочете видалити цього користувача?",
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
-            success, msg = us.delete_user(user_id)
+            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА:
+            success, msg = us.delete_user(user_id, self.current_admin_id)
             if success:
                 self.load_users_data()
             else:
@@ -782,7 +905,9 @@ class ArmAdminWindow(BaseArmWindow):
             if not data["full_name"] or not data["password"]:
                 QMessageBox.warning(self, "Помилка", "ПІБ та Пароль є обов'язковими!")
                 return
-            success, msg = us.add_user(data["role_id"], data["full_name"], data["email"], data["password"])
+            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА ОСТАННІМ ПАРАМЕТРОМ:
+            success, msg = us.add_user(data["role_id"], data["full_name"], data["email"], data["password"],
+                                       self.current_admin_id)
             if success:
                 self.load_users_data()
             else:
@@ -801,7 +926,9 @@ class ArmAdminWindow(BaseArmWindow):
         dialog.setStyleSheet(self.styleSheet())
         if dialog.exec():
             data = dialog.get_data()
-            success, msg = us.update_user(user_id, data["role_id"], data["full_name"], data["email"])
+            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА:
+            success, msg = us.update_user(user_id, data["role_id"], data["full_name"], data["email"],
+                                          self.current_admin_id)
             if success:
                 self.load_users_data()
             else:
@@ -813,7 +940,8 @@ class ArmAdminWindow(BaseArmWindow):
         new_password, ok = QInputDialog.getText(self, "Скидання пароля", "Введіть новий пароль:",
                                                 QLineEdit.EchoMode.Password)
         if ok and new_password.strip():
-            success, msg = us.reset_password(user_id, new_password.strip())
+            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА:
+            success, msg = us.reset_password(user_id, new_password.strip(), self.current_admin_id)
             if success:
                 QMessageBox.information(self, "Успіх", msg)
             else:
@@ -863,7 +991,8 @@ class ArmAdminWindow(BaseArmWindow):
         dialog = DirectoryDialog(self, tab_index=tab_idx)
         dialog.setStyleSheet(self.styleSheet())
         if dialog.exec():
-            success, msg = ds.save_directory_item(tab_idx, dialog.get_data())
+            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА ОСТАННІМ ПАРАМЕТРОМ (admin_id):
+            success, msg = ds.save_directory_item(tab_idx, dialog.get_data(), admin_id=self.current_admin_id)
             if success:
                 self.load_all_directories()
             else:
@@ -892,13 +1021,14 @@ class ArmAdminWindow(BaseArmWindow):
         elif tab_idx == 3:
             current_data["crew_number"] = table.item(row, 1).text()
             current_data["category_name"] = table.item(row, 2).text()
-            # НОВЕ: Зчитуємо поточний текст статусу з таблиці, щоб передати у форму
             current_data["status"] = table.item(row, 3).text()
 
         dialog = DirectoryDialog(self, tab_index=tab_idx, current_data=current_data)
         dialog.setStyleSheet(self.styleSheet())
         if dialog.exec():
-            success, msg = ds.save_directory_item(tab_idx, dialog.get_data(), item_id=item_id)
+            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА (item_id передається третім, admin_id — четвертим):
+            success, msg = ds.save_directory_item(tab_idx, dialog.get_data(), item_id=item_id,
+                                                  admin_id=self.current_admin_id)
             if success:
                 self.load_all_directories()
             else:
@@ -915,8 +1045,68 @@ class ArmAdminWindow(BaseArmWindow):
         reply = QMessageBox.question(self, "Підтвердження", "Ви впевнені, що хочете видалити цей довідниковий запис?",
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
-            success, msg = ds.delete_directory_item(tab_idx, item_id)
+            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА:
+            success, msg = ds.delete_directory_item(tab_idx, item_id, self.current_admin_id)
             if success:
                 self.load_all_directories()
             else:
                 QMessageBox.critical(self, "Обмеження видалення", msg)
+
+    def show_full_audit_value(self, row, col):
+        """Відкриває модальне вікно з повним вмістом для полів Старе/Нове значення."""
+        # Індекси колонок: 5 — Старе значення, 6 — Нове значення
+        if col not in (5, 6):
+            return
+
+        item = self.table_audit.item(row, col)
+        if not item:
+            return
+
+        text_content = item.text().strip()
+        if not text_content or text_content == "—":
+            return  # Якщо там порожньо або прочерк, вікно не відкриваємо
+
+        # Визначаємо заголовок вікна залежно від колонки
+        col_header = "Старе значення змін" if col == 5 else "Нове значення змін"
+
+        # Створюємо віконце діалогу
+        dialog = QDialog(self)
+        dialog.setWindowTitle(col_header)
+        dialog.resize(550, 380)
+
+        lay = QVBoxLayout(dialog)
+        lay.setContentsMargins(20, 20, 20, 20)
+        lay.setSpacing(15)
+
+        title = QLabel(f"Повний технічний зліпок події (Рядок ID: {self.table_audit.item(row, 0).text()}):")
+        title.setStyleSheet("font-size: 15px; font-weight: bold; color: #8B5CF6;")
+
+        # Текстове поле з підтримкою копіювання та прокрутки
+        text_edit = QTextEdit()
+        text_edit.setPlainText(text_content)
+        text_edit.setReadOnly(True)  # Тільки для читання
+
+        # Стилізуємо віконце під поточну тему (Темна/Світла)
+        if self.is_dark_theme:
+            dialog.setStyleSheet("QDialog { background-color: #282A36; color: #F8F8F2; }")
+            text_edit.setStyleSheet(
+                "background-color: #1E1E2E; color: #F8F8F2; border: 1px solid #44475A; border-radius: 6px; padding: 10px; font-size: 14px;"
+            )
+        else:
+            dialog.setStyleSheet("QDialog { background-color: #F8F9FA; color: #2C3E50; }")
+            text_edit.setStyleSheet(
+                "background-color: #FFFFFF; color: #2C3E50; border: 1px solid #DEE2E6; border-radius: 6px; padding: 10px; font-size: 14px;"
+            )
+
+        btn_close = self.create_action_button("Закрити", primary=True)
+        btn_close.clicked.connect(dialog.accept)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_close)
+
+        lay.addWidget(title)
+        lay.addWidget(text_edit)
+        lay.addLayout(btn_layout)
+
+        dialog.exec()
