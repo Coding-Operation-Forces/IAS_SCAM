@@ -1,5 +1,6 @@
 import sys
 import os
+from timeit import Timer
 import traceback
 import ctypes
 from ctypes import wintypes

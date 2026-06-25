@@ -143,7 +143,6 @@ class LoginWindow(QWidget):
         
         if self.loading_step == 40:
             self.loading_lbl.setText("Ініціалізація робочого середовища...")
-            # Поки анімація йде, ми непомітно завантажуємо дані і будуємо інтерфейс
             self.instantiate_main_window()
         elif self.loading_step == 80:
             self.loading_lbl.setText("Підготовка інтерфейсу...")
@@ -157,8 +156,8 @@ class LoginWindow(QWidget):
                     self.main_window.theme_btn.setText("🌙 Темна тема")
                 self.main_window.apply_theme()
             
-            # Показуємо готову програму і ховаємо вікно авторизації
-            self.main_window.show()
+            # ЗМІНЕНО: Тепер саме робочий інтерфейс АРМ відкривається на весь екран!
+            self.main_window.showMaximized()
             self.close()
 
     def instantiate_main_window(self):

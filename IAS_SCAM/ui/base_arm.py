@@ -13,7 +13,6 @@ class StyledComboBox(QComboBox):
 
     def paintEvent(self, event):
         super().paintEvent(event)
-
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -22,8 +21,7 @@ class StyledComboBox(QComboBox):
         else:
             color = self.arrow_color
 
-        pen = QPen(color, 1.8, Qt.PenStyle.SolidLine,
-                   Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        pen = QPen(color, 1.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
@@ -100,15 +98,11 @@ class BaseArmWindow(QWidget):
         btn = QPushButton(text)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.menu_buttons.append(btn)
-
         index = self.stacked_widget.count()
         self.stacked_widget.addWidget(page_widget)
-
         btn.clicked.connect(lambda checked=False, idx=index, b=btn: self.on_menu_click(idx, b))
         self.sidebar_layout.addWidget(btn)
-
-        if index == 0:
-            self.active_button = btn
+        if index == 0: self.active_button = btn
 
     def on_menu_click(self, index, btn):
         self.stacked_widget.setCurrentIndex(index)
@@ -119,8 +113,7 @@ class BaseArmWindow(QWidget):
         self.sidebar_layout.addStretch()
 
         for btn in self.menu_buttons:
-            if "Довідка" in btn.text():
-                btn.hide()
+            if "Довідка" in btn.text(): btn.hide()
 
         self.btn_help = QPushButton("❓ Довідка")
         self.btn_help.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -141,12 +134,9 @@ class BaseArmWindow(QWidget):
 
     def show_help_window(self):
         from ui.help import HelpWindow
-
         try:
-            if self.help_window is not None:
-                self.help_window.windowTitle()
-        except RuntimeError:
-            self.help_window = None
+            if self.help_window is not None: self.help_window.windowTitle()
+        except RuntimeError: self.help_window = None
 
         if self.help_window is None:
             self.help_window = HelpWindow(self.get_help_data(), f"Довідка: {self.title_text}", self.is_dark_theme)
@@ -158,43 +148,7 @@ class BaseArmWindow(QWidget):
         self.help_window.activateWindow()
 
     def get_help_data(self):
-        if "Адміністратора" in self.title_text:
-            return {
-                "Вступ": "<h1 style='color: #8B5CF6;'>АРМ Адміністратора</h1><p>Цей модуль призначений для технічного обслуговування системи.</p>",
-                "Технічне управління": {
-                    "🖥️ Моніторинг": "<h2 style='color: #8B5CF6;'>Моніторинг стану</h2><p>Дозволяє перевіряти активність БД та робити бекап.</p>",
-                    "⚙️ Настройки": "<h2 style='color: #8B5CF6;'>Настройки системи</h2><p>Глобальні параметри програми.</p>"
-                },
-                "Управління даними": {
-                    "👥 Користувачі": "<h2 style='color: #8B5CF6;'>Управління користувачами</h2><p>Реєстрація нових працівників підприємства.</p>",
-                    "📚 Довідники": "<h2 style='color: #8B5CF6;'>Ведення довідників</h2><p>Оновлюйте ціни на матеріали та типи робіт.</p>"
-                }
-            }
-        elif "Керівника" in self.title_text:
-            return {
-                "Вступ": "<h1 style='color: #8B5CF6;'>АРМ Керівника</h1><p>Модуль для аналітики та прийняття управлінських рішень.</p>",
-                "Аналітика": {
-                    "📈 Ефективність": "<h2 style='color: #8B5CF6;'>Ефективність роботи</h2><p>Графік та таблиці оновлюються автоматично.</p>",
-                    "🗺️ Карта": "<h2 style='color: #8B5CF6;'>Візуалізація ділянок</h2><p>Карта Києва, що відображає найбільш критичні зони.</p>"
-                },
-                "Фінанси": {
-                    "💰 Бюджет": "<h2 style='color: #8B5CF6;'>Контроль бюджету</h2><p>Підбивається загальна сума витрат матеріалів.</p>"
-                }
-            }
-        elif "Працівника" in self.title_text:
-            return {
-                "Вступ": "<h1 style='color: #8B5CF6;'>АРМ Працівника</h1><p>Модуль для управління зверненнями та обліку матеріалів.</p>",
-                "Робота з заявками": {
-                    "📌 Прийом заявок": "<h2 style='color: #8B5CF6;'>Прийом заявок</h2><p>Відображає список активних звернень.</p>",
-                    "📝 Реєстрація": "<h2 style='color: #8B5CF6;'>Реєстрація звернень</h2><p>Адреса підтягується автоматично за номером рахунку.</p>"
-                },
-                "Виконання": {
-                    "🔧 Роботи": "<h2 style='color: #8B5CF6;'>Виконання робіт</h2><p>Списання матеріалів та підрахунок вартості.</p>",
-                    "🗺️ Карта": "<h2 style='color: #8B5CF6;'>Карта</h2><p>Візуально оцінюйте місцезнаходження аварії.</p>"
-                }
-            }
-        else:
-            return {"Довідка": "<p>Універсальна довідка</p>"}
+        return {"Довідка": "<p>Універсальна довідка</p>"}
 
     def create_table_filters(self, table, filter_options=None):
         filter_options = filter_options or {}
@@ -204,7 +158,6 @@ class BaseArmWindow(QWidget):
         filter_layout.setSpacing(0)
 
         self.filter_inputs = []
-        
         self.corner_spacer = QWidget()
         filter_layout.addWidget(self.corner_spacer)
 
@@ -234,12 +187,10 @@ class BaseArmWindow(QWidget):
         def sync_widths():
             v_header_width = table.verticalHeader().width()
             self.corner_spacer.setFixedWidth(v_header_width)
-            for c, widget in self.filter_inputs:
-                widget.setFixedWidth(table.columnWidth(c))
+            for c, widget in self.filter_inputs: widget.setFixedWidth(table.columnWidth(c))
 
         table.horizontalHeader().sectionResized.connect(sync_widths)
         QTimer.singleShot(100, sync_widths)
-
         return filter_widget
 
     def filter_table(self, table, inputs):
@@ -254,8 +205,7 @@ class BaseArmWindow(QWidget):
 
                 if filter_text:
                     cell_widget = table.cellWidget(row, col)
-                    if isinstance(cell_widget, QComboBox):
-                        item_text = cell_widget.currentText().lower()
+                    if isinstance(cell_widget, QComboBox): item_text = cell_widget.currentText().lower()
                     else:
                         item = table.item(row, col)
                         item_text = item.text().lower() if item else ""
@@ -271,15 +221,29 @@ class BaseArmWindow(QWidget):
         for col_idx, data in enumerate(row_data):
             table.setItem(row_idx, col_idx, QTableWidgetItem(str(data)))
 
-    def create_action_button(self, text, primary=False, danger=False):
+    # ========================================================
+    # ІДЕАЛЬНА КНОПКА: Жорстко копіюємо стиль кнопки "Увійти"
+    # ========================================================
+    def create_action_button(self, text, **kwargs):
         btn = QPushButton(text)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        if primary:
-            btn.setProperty("btn_type", "primary")
-        elif danger:
-            btn.setProperty("btn_type", "danger")
-        else:
-            btn.setProperty("btn_type", "standard")
+        btn.setFixedHeight(42) # Робимо їх високими і зручними
+        
+        # Жорсткий стиль, який не зможе перебити жодна тема
+        btn.setStyleSheet("""
+            QPushButton { 
+                background-color: #8B5CF6; 
+                color: #FFFFFF; 
+                font-weight: bold; 
+                font-size: 14px;
+                border-radius: 6px; 
+                border: none; 
+                padding: 0 20px;
+            }
+            QPushButton:hover { 
+                background-color: #7C3AED; 
+            }
+        """)
         return btn
 
     def create_line_edit(self, placeholder=""):
@@ -291,20 +255,16 @@ class BaseArmWindow(QWidget):
         from ui.login_window import LoginWindow
         self.login_window = LoginWindow()
         self.login_window.show()
-
         try:
-            if self.help_window is not None:
-                self.help_window.close()
-        except RuntimeError:
-            pass
-
+            if self.help_window is not None: self.help_window.close()
+        except RuntimeError: pass
         self.close()
 
     def toggle_sidebar(self):
         width = self.sidebar.width()
         new_width = 0 if width == 230 else 230
-
         self.anim_group = QParallelAnimationGroup()
+        
         self.anim_max = QPropertyAnimation(self.sidebar, b"maximumWidth")
         self.anim_max.setDuration(500)
         self.anim_max.setStartValue(width)
@@ -331,19 +291,15 @@ class BaseArmWindow(QWidget):
 
     def toggle_theme(self):
         self.is_dark_theme = not self.is_dark_theme
-        if self.is_dark_theme:
-            self.theme_btn.setText("🌞 Світла тема")
-        else:
-            self.theme_btn.setText("🌙 Темна тема")
+        if self.is_dark_theme: self.theme_btn.setText("🌞 Світла тема")
+        else: self.theme_btn.setText("🌙 Темна тема")
 
         self.apply_theme()
-
         try:
             if self.help_window is not None:
                 self.help_window.is_dark_theme = self.is_dark_theme
                 self.help_window.apply_theme()
-        except RuntimeError:
-            self.help_window = None
+        except RuntimeError: self.help_window = None
 
         self.fade_in_anim = QPropertyAnimation(self, b"windowOpacity")
         self.fade_in_anim.setDuration(250)
@@ -394,204 +350,94 @@ class BaseArmWindow(QWidget):
         self.stacked_widget.setStyleSheet(f"background-color: {content_bg};")
         self.title_label.setStyleSheet(f"font-size: 18px; font-weight: 600; color: {text_color}; border: none;")
 
-        self.hamburger_btn.setStyleSheet(f"""
-            QPushButton {{ background-color: transparent; color: {accent_color}; font-size: 24px; border: none; border-radius: 8px; }} 
-            QPushButton:hover {{ background-color: {hover_bg}; }}
-        """)
+        self.hamburger_btn.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {accent_color}; font-size: 24px; border: none; border-radius: 8px; }} QPushButton:hover {{ background-color: {hover_bg}; }}")
 
         for btn in self.menu_buttons:
             if btn == self.active_button:
-                btn.setStyleSheet(f"""
-                    QPushButton {{ background-color: {hover_bg}; color: {accent_color}; text-align: left; padding: 12px 15px; border: none; border-left: 4px solid {accent_color}; font-size: 14px; font-weight: bold; border-top-right-radius: 6px; border-bottom-right-radius: 6px; }}
-                """)
+                btn.setStyleSheet(f"QPushButton {{ background-color: {hover_bg}; color: {accent_color}; text-align: left; padding: 12px 15px; border: none; border-left: 4px solid {accent_color}; font-size: 14px; font-weight: bold; border-top-right-radius: 6px; border-bottom-right-radius: 6px; }}")
             else:
-                btn.setStyleSheet(f"""
-                    QPushButton {{ background-color: transparent; color: {btn_color}; text-align: left; padding: 12px 15px; border: none; font-size: 14px; font-weight: 500; border-radius: 6px; }} 
-                    QPushButton:hover {{ background-color: {hover_bg}; color: {text_color}; }}
-                """)
+                btn.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {btn_color}; text-align: left; padding: 12px 15px; border: none; font-size: 14px; font-weight: 500; border-radius: 6px; }} QPushButton:hover {{ background-color: {hover_bg}; color: {text_color}; }}")
 
         btn_bottom_style = f"QPushButton {{ background-color: transparent; color: {btn_color}; text-align: left; padding: 12px 15px; border: none; font-size: 14px; font-weight: 500; border-radius: 6px; }} QPushButton:hover {{ background-color: {hover_bg}; color: {text_color}; }}"
 
-        if hasattr(self, 'btn_help'):
-            self.btn_help.setStyleSheet(btn_bottom_style)
-        if hasattr(self, 'theme_btn'):
-            self.theme_btn.setStyleSheet(btn_bottom_style)
+        if hasattr(self, 'btn_help'): self.btn_help.setStyleSheet(btn_bottom_style)
+        if hasattr(self, 'theme_btn'): self.theme_btn.setStyleSheet(btn_bottom_style)
         if hasattr(self, 'btn_logout'):
-            self.btn_logout.setStyleSheet(
-                "QPushButton { background-color: transparent; color: #FF5555; text-align: left; padding: 12px 15px; border: none; font-size: 14px; font-weight: bold; border-radius: 6px; } QPushButton:hover { background-color: rgba(255, 85, 85, 0.15); }")
-
-        for btn in self.findChildren(QPushButton):
-            btn_type = btn.property("btn_type")
-            if btn_type == "primary":
-                btn.setStyleSheet(
-                    f"background-color: {accent_color}; color: #FFFFFF; font-weight: bold; padding: 8px 15px; border-radius: 5px; border: none;")
-            elif btn_type == "danger":
-                btn.setStyleSheet(
-                    f"background-color: #FF5555; color: #FFFFFF; font-weight: bold; padding: 8px 15px; border-radius: 5px; border: none;")
-            elif btn_type == "standard":
-                btn.setStyleSheet(
-                    f"background-color: {hover_bg}; color: {text_color}; font-weight: bold; padding: 8px 15px; border-radius: 5px; border: none;")
-
-        table_style = f"""
-            QTableWidget {{ background-color: {table_bg}; color: {text_color}; gridline-color: {border_color}; border: 1px solid {border_color}; border-radius: 6px; }}
-            QHeaderView::section {{ background-color: {header_bg}; color: {header_text}; padding: 5px; font-weight: bold; border: 1px solid {border_color}; }}
-        """
-        for tbl in self.findChildren(QTableWidget):
-            tbl.setStyleSheet(table_style)
-
-        tab_style = f"""
-            QTabWidget::pane {{ border: 1px solid {border_color}; background-color: {content_bg}; border-radius: 4px; }}
-            QTabBar::tab {{ background: {sidebar_bg}; color: {text_color}; padding: 8px 16px; border: 1px solid {border_color}; border-bottom: none; border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: 2px; }}
-            QTabBar::tab:selected {{ background: {content_bg}; color: {accent_color}; font-weight: bold; border-bottom: 3px solid {accent_color}; }}
-            QTabBar::tab:hover {{ background: {hover_bg}; }}
-        """
-        for tab in self.findChildren(QTabWidget):
-            tab.setStyleSheet(tab_style)
-
-        input_style = f"""
-            QLineEdit, QTextEdit {{ 
-                background-color: {input_bg}; 
-                color: {text_color}; 
-                border: 1px solid {border_color}; 
-                border-radius: 6px; 
-                padding: 6px 10px; 
-                font-size: 14px; 
-            }}
-            QLineEdit:focus, QTextEdit:focus {{ 
-                border: 1px solid {accent_color}; 
-            }}
-            QLineEdit::placeholder {{ 
-                color: {placeholder_color}; 
-            }}
-
-            /* --- ОНОВЛЕНО ДЛЯ ТЕКСТОВИХ ФІЛЬТРІВ --- */
-            QLineEdit[is_filter="true"] {{
-                background-color: {input_bg};
-                border: 1px solid {border_color};
-                border-radius: 0px; 
-                padding: 2px 4px;
-                font-size: 13px;
-                color: {text_color};
-            }}
-            QLineEdit[is_filter="true"]:focus {{
-                border: 1px solid {accent_color};
-            }}
-
-            QComboBox {{
-                background-color: {input_bg};
-                color: {text_color};
-                border: 1px solid {border_color};
-                border-radius: 6px;
-                padding: 6px 36px 6px 10px;
-                font-size: 14px;
-            }}
-            QComboBox:focus {{
-                border: 1px solid {accent_color};
-            }}
-            QComboBox:hover {{
-                border: 1px solid {accent_color};
-            }}
-            
-            /* --- ДОДАНО ДЛЯ ВИПАДАЮЧИХ ФІЛЬТРІВ --- */
-            QComboBox[is_filter="true"] {{
-                border-radius: 0px;
-                padding: 2px 20px 2px 4px;
-                font-size: 13px;
-            }}
-
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 32px;
-                border: none;
-                border-top-right-radius: 6px;
-                border-bottom-right-radius: 6px;
-                background: transparent;
-            }}
-            QComboBox::down-arrow {{
-                width: 0px;
-                height: 0px;
-                image: none;
-            }}
-
-            QComboBox QAbstractItemView {{ 
-                background-color: {input_bg}; 
-                color: {text_color}; 
-                selection-background-color: {accent_color}; 
-                selection-color: #FFFFFF;
-                border-radius: 6px;
-                border: 1px solid {border_color};
-                outline: none;
-                padding: 4px;
-            }}
-            QComboBox QAbstractItemView::item {{
-                min-height: 28px;
-                border-radius: 4px;
-                color: {text_color};
-            }}
-            QComboBox QAbstractItemView::item:hover {{
-                background-color: {hover_bg};
-            }}
-            QComboBox QAbstractItemView::item:selected {{
-                background-color: {accent_color};
-                color: #FFFFFF;
-            }}
-        """
-        for w in self.findChildren(QLineEdit) + self.findChildren(QTextEdit):
-            w.setStyleSheet(input_style)
-
-        StyledComboBox.arrow_color = QColor(arrow_color)
-        combo_style_str = input_style
-        for cb in self.findChildren(QComboBox):
-            cb.setStyleSheet(combo_style_str)
-            cb.update()
-
-        for gb in self.findChildren(QGroupBox):
-            gb.setStyleSheet(
-                f"QGroupBox {{ color: {text_color}; font-weight: bold; border: 1px solid {border_color}; border-radius: 8px; margin-top: 15px; padding-top: 20px; }} QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; padding: 0 5px; left: 10px; }}")
+            self.btn_logout.setStyleSheet("QPushButton { background-color: transparent; color: #FF5555; text-align: left; padding: 12px 15px; border: none; font-size: 14px; font-weight: bold; border-radius: 6px; } QPushButton:hover { background-color: rgba(255, 85, 85, 0.15); }")
 
         for frame in self.findChildren(QFrame):
             if frame.objectName() == "stat_card":
                 color = frame.property("accent_color")
                 bg = "#282A36" if self.is_dark_theme else "#FFFFFF"
                 border = "none" if self.is_dark_theme else f"1px solid {border_color}"
-                frame.setStyleSheet(
-                    f"background-color: {bg}; border-radius: 10px; border-top: 4px solid {color}; border-left: {border}; border-right: {border}; border-bottom: {border};")
+                frame.setStyleSheet(f"background-color: {bg}; border-radius: 10px; border-top: 4px solid {color}; border-left: {border}; border-right: {border}; border-bottom: {border};")
 
         for lbl in self.findChildren(QLabel):
-            if lbl.objectName() == "stat_title":
-                lbl.setStyleSheet(
-                    f"color: {'#A6ADC8' if self.is_dark_theme else '#6C757D'}; font-weight: bold; font-size: 14px; border: none;")
-            elif lbl.objectName() == "stat_value":
+            if lbl.objectName() == "stat_value":
                 color = lbl.property("accent_color")
                 lbl.setStyleSheet(f"color: {color}; font-weight: bold; font-size: 32px; border: none;")
 
-        self.setStyleSheet(f"""
-            QLabel {{ color: {text_color}; }} 
-            QScrollArea {{ background: transparent; border: none; }}
+        StyledComboBox.arrow_color = QColor(arrow_color)
+        for cb in self.findChildren(QComboBox): cb.update()
 
-            QScrollBar:vertical {{
-                border: none; background: {scroll_bg}; width: 10px; border-radius: 5px; margin: 0px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: {scroll_handle}; min-height: 30px; border-radius: 5px;
-            }}
+        # ГЛОБАЛЬНИЙ СТИЛЬ ТЕПЕР НЕ ЧІПАЄ КНОПКИ ДІЙ (вони налаштовані жорстко вище)
+        global_style = f"""
+            QLabel {{ color: {text_color}; }} 
+            QLabel#stat_title {{ color: {'#A6ADC8' if self.is_dark_theme else '#6C757D'}; font-weight: bold; font-size: 14px; border: none; }}
+            
+            QScrollArea {{ background: transparent; border: none; }}
+            QScrollBar:vertical {{ border: none; background: {scroll_bg}; width: 10px; border-radius: 5px; margin: 0px; }}
+            QScrollBar::handle:vertical {{ background: {scroll_handle}; min-height: 30px; border-radius: 5px; }}
             QScrollBar::handle:vertical:hover {{ background: {scroll_hover}; }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                border: none; background: none; height: 0px;
-            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ border: none; background: none; height: 0px; }}
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: none; }}
 
-            QScrollBar:horizontal {{
-                border: none; background: {scroll_bg}; height: 10px; border-radius: 5px; margin: 0px;
-            }}
-            QScrollBar::handle:horizontal {{
-                background: {scroll_handle}; min-width: 30px; border-radius: 5px;
-            }}
+            QScrollBar:horizontal {{ border: none; background: {scroll_bg}; height: 10px; border-radius: 5px; margin: 0px; }}
+            QScrollBar::handle:horizontal {{ background: {scroll_handle}; min-width: 30px; border-radius: 5px; }}
             QScrollBar::handle:horizontal:hover {{ background: {scroll_hover}; }}
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
-                border: none; background: none; width: 0px;
-            }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ border: none; background: none; width: 0px; }}
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: none; }}
             QAbstractScrollArea::corner {{ background: transparent; }}
-        """)
+
+            QTableWidget {{ background-color: {table_bg}; color: {text_color}; gridline-color: {border_color}; border: 1px solid {border_color}; border-radius: 6px; }}
+            QHeaderView::section {{ background-color: {header_bg}; color: {header_text}; padding: 5px; font-weight: bold; border: 1px solid {border_color}; }}
+            
+            QTabWidget::pane {{ border: 1px solid {border_color}; background-color: {content_bg}; border-radius: 4px; }}
+            QTabBar::tab {{ background: {sidebar_bg}; color: {text_color}; padding: 8px 16px; border: 1px solid {border_color}; border-bottom: none; border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: 2px; }}
+            QTabBar::tab:selected {{ background: {content_bg}; color: {accent_color}; font-weight: bold; border-bottom: 3px solid {accent_color}; }}
+            QTabBar::tab:hover {{ background: {hover_bg}; }}
+
+            QLineEdit, QTextEdit, QDateEdit, QSpinBox {{ 
+                background-color: {input_bg}; color: {text_color}; border: 1px solid {border_color}; border-radius: 6px; 
+                padding: 6px 30px 6px 10px; font-size: 14px; 
+            }}
+            QLineEdit:focus, QTextEdit:focus, QDateEdit:focus, QSpinBox:focus {{ border: 1px solid {accent_color}; }}
+            QLineEdit::placeholder, QTextEdit::placeholder {{ color: {placeholder_color}; }}
+            
+            QDateEdit::drop-down, QSpinBox::up-button, QSpinBox::down-button {{ border: none; background: transparent; width: 25px; }}
+
+            QLineEdit[is_filter="true"] {{ border-radius: 0px; padding: 2px 4px; font-size: 13px; }}
+
+            QComboBox {{ background-color: {input_bg}; color: {text_color}; border: 1px solid {border_color}; border-radius: 6px; padding: 6px 36px 6px 10px; font-size: 14px; }}
+            QComboBox:focus, QComboBox:hover {{ border: 1px solid {accent_color}; }}
+            QComboBox[is_filter="true"] {{ border-radius: 0px; padding: 2px 20px 2px 4px; font-size: 13px; }}
+            QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: top right; width: 32px; border: none; background: transparent; }}
+            QComboBox::down-arrow {{ width: 0px; height: 0px; image: none; }}
+            QComboBox QAbstractItemView {{ background-color: {input_bg}; color: {text_color}; selection-background-color: {accent_color}; selection-color: #FFFFFF; border-radius: 6px; border: 1px solid {border_color}; outline: none; padding: 4px; }}
+            QComboBox QAbstractItemView::item {{ min-height: 28px; border-radius: 4px; color: {text_color}; }}
+            QComboBox QAbstractItemView::item:hover {{ background-color: {hover_bg}; }}
+            QComboBox QAbstractItemView::item:selected {{ background-color: {accent_color}; color: #FFFFFF; }}
+
+            QGroupBox {{ color: {text_color}; font-weight: bold; border: 1px solid {border_color}; border-radius: 8px; margin-top: 15px; padding-top: 20px; }}
+            QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; padding: 0 5px; left: 10px; }}
+
+            QCalendarWidget QWidget#qt_calendar_navigationbar {{ background-color: {header_bg}; }}
+            QCalendarWidget QToolButton {{ color: {text_color}; background-color: transparent; font-weight: bold; font-size: 14px; border-radius: 4px; padding: 4px; }}
+            QCalendarWidget QToolButton:hover {{ background-color: {hover_bg}; }}
+            QCalendarWidget QMenu {{ background-color: {input_bg}; color: {text_color}; }}
+            QCalendarWidget QSpinBox {{ background-color: {input_bg}; color: {text_color}; padding: 2px; }}
+            QCalendarWidget QAbstractItemView:enabled {{ color: {text_color}; background-color: {input_bg}; selection-background-color: {accent_color}; selection-color: white; }}
+            QCalendarWidget QAbstractItemView:disabled {{ color: {placeholder_color}; }}
+        """
+
+        self.setStyleSheet(global_style)

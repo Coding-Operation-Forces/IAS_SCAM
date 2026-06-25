@@ -7,7 +7,7 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 from ui.base_arm import BaseArmWindow, StyledComboBox
 from services import worker_service, dictionary_service
-from services.api_service import AddressSearchThread, load_geo_cache
+from services.api_service import AddressSearchThread, load_address_cache # ВАЖЛИВО!
 
 class ArmWorkerWindow(BaseArmWindow):
     def __init__(self, user_id=None):
@@ -87,19 +87,9 @@ class ArmWorkerWindow(BaseArmWindow):
         hover_bg = "#44475A" if self.is_dark_theme else "#E9ECEF"
         
         table_cb_style = f"""
-            QComboBox {{
-                background-color: transparent;
-                color: {text_color};
-                border: 1px solid transparent;
-                padding: 2px 5px;
-            }}
+            QComboBox {{ background-color: transparent; color: {text_color}; border: 1px solid transparent; padding: 2px 5px; }}
             QComboBox:hover {{ border: 1px solid {border_color}; border-radius: 4px; }}
-            QComboBox QAbstractItemView {{
-                background-color: {bg_color};
-                color: {text_color};
-                selection-background-color: {accent_color};
-                border: 1px solid {border_color};
-            }}
+            QComboBox QAbstractItemView {{ background-color: {bg_color}; color: {text_color}; selection-background-color: {accent_color}; border: 1px solid {border_color}; }}
             QComboBox QAbstractItemView::item {{ color: {text_color}; min-height: 28px; }}
             QComboBox QAbstractItemView::item:hover {{ background-color: {hover_bg}; }}
         """
@@ -184,7 +174,7 @@ class ArmWorkerWindow(BaseArmWindow):
         self.btn_toggle_view = self.create_action_button("Показати всі заявки")
         self.btn_toggle_view.clicked.connect(self.toggle_requests_view_mode)
         
-        btn_save = self.create_action_button("💾 Зберегти зміни", primary=True)
+        btn_save = self.create_action_button("💾 Зберегти зміни")
         btn_save.clicked.connect(self.save_table_changes)
         
         top_bar.addWidget(btn_refresh)
@@ -225,7 +215,7 @@ class ArmWorkerWindow(BaseArmWindow):
         main_layout.addWidget(filters)
         main_layout.addWidget(self.requests_table)
 
-        btn_show_map = self.create_action_button("📍 Відкрити карту інфраструктури міста", primary=False)
+        btn_show_map = self.create_action_button("📍 Відкрити карту інфраструктури міста")
         btn_show_map.clicked.connect(self.open_map_window)
         main_layout.addWidget(btn_show_map)
 
@@ -263,7 +253,7 @@ class ArmWorkerWindow(BaseArmWindow):
                 text_edit.setStyleSheet("background-color: #FFFFFF; color: #2C3E50; border: 1px solid #DEE2E6; border-radius: 6px; padding: 10px; font-size: 14px;")
                 title.setStyleSheet("font-size: 16px; font-weight: bold; color: #8B5CF6;")
                 
-            btn_close = self.create_action_button("Закрити", primary=True)
+            btn_close = self.create_action_button("Закрити")
             btn_close.clicked.connect(dialog.accept)
             
             btn_layout = QHBoxLayout()
@@ -349,6 +339,19 @@ class ArmWorkerWindow(BaseArmWindow):
         self.apply_theme()
         self.refresh_map_markers()
 
+    def handle_map_title_cache(self, title):
+        if title.startswith("CACHE|"):
+            parts = title.split("|")
+            if len(parts) == 4:
+                addr = parts[1]
+                lat = float(parts[2])
+                lon = float(parts[3])
+                from services.api_service import load_address_cache, save_address_cache
+                cache = load_address_cache()
+                if addr not in cache:
+                    cache[addr] = [lat, lon]
+                    save_address_cache(cache)
+
     def open_map_window(self):
         req_id = None
         full_addr = "Всі поточні аварії міста Києва"
@@ -368,9 +371,9 @@ class ArmWorkerWindow(BaseArmWindow):
             map_layout.setContentsMargins(0, 0, 0, 0)
             
             self.web_map = QWebEngineView()
+            self.web_map.titleChanged.connect(self.handle_map_title_cache)
             map_layout.addWidget(self.web_map)
             
-            # Оновлений HTML код із вбудованою логікою використання кешу
             html_content = """
             <!DOCTYPE html>
             <html>
@@ -406,12 +409,29 @@ class ArmWorkerWindow(BaseArmWindow):
                     function setFocusTarget(id) {
                         focusTargetId = String(id);
                         if (markers[focusTargetId]) {
-                            map.flyTo(markers[focusTargetId].getLatLng(), 16, {
-                                animate: true,
-                                duration: 1.5
-                            });
+                            map.flyTo(markers[focusTargetId].getLatLng(), 16, { animate: true, duration: 1.5 });
                             markers[focusTargetId].openPopup();
                         }
+                    }
+
+                    var geocodeQueue = [];
+                    var isGeocoding = false;
+
+                    function processQueue() {
+                        if (geocodeQueue.length === 0) { isGeocoding = false; return; }
+                        isGeocoding = true;
+                        var task = geocodeQueue.shift();
+
+                        fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(task.search_addr + ", Київ, Україна"))
+                            .then(res => res.json())
+                            .then(data => {
+                                if(data.length > 0) {
+                                    task.callback(data[0].lat, data[0].lon);
+                                    document.title = "CACHE|" + task.search_addr.toLowerCase() + "|" + data[0].lat + "|" + data[0].lon;
+                                } else { document.title = "MAP_READY"; }
+                                setTimeout(processQueue, 1500); 
+                            })
+                            .catch(err => { setTimeout(processQueue, 3000); });
                     }
                     
                     function addMarker(id, display_addr, search_addr, status, criticality, issue_type, desc, applicant, time, crew, lat, lon) {
@@ -428,7 +448,6 @@ class ArmWorkerWindow(BaseArmWindow):
 
                         var popupContent = `<div class="popup-custom"><h4>Заявка #${id}</h4><b>📅 Час:</b> ${time}<br><b>📍 Адреса:</b> ${display_addr}<br><b>👤 Заявник:</b> ${applicant}<br><b>⚠️ Тип:</b> ${issue_type}<br><div class="desc-box"><b>📝 Опис:</b> ${desc}</div><hr style='margin:8px 0;border:0;border-top:1px solid #ddd;'><b>🛠 Статус:</b> ${status}<br><b>👷 Виконавець:</b> ${crew}</div>`;
                         
-                        // Внутрішня функція для малювання після того як координати відомі
                         function drawPin(markerLat, markerLon) {
                             var m = L.marker([markerLat, markerLon], {icon: customIcon}).addTo(map).bindPopup(popupContent);
                             markers[String(id)] = m;
@@ -439,20 +458,11 @@ class ArmWorkerWindow(BaseArmWindow):
                             }
                         }
 
-                        // Якщо Python передав координати з кешу - малюємо миттєво
                         if (lat !== null && lon !== null) {
                             drawPin(lat, lon);
                         } else {
-                            // Якщо адреса нова і в кеші її немає - робимо запит
-                            var query = encodeURIComponent(search_addr + ", Київ, Україна");
-                            fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + query)
-                                .then(res => res.json())
-                                .then(data => {
-                                    if(data.length > 0) {
-                                        drawPin(data[0].lat, data[0].lon);
-                                    }
-                                })
-                                .catch(err => console.error("Помилка геокодування:", err));
+                            geocodeQueue.push({ search_addr: search_addr, callback: drawPin });
+                            if (!isGeocoding) processQueue();
                         }
                     }
                 </script>
@@ -482,12 +492,10 @@ class ArmWorkerWindow(BaseArmWindow):
         self.web_map.page().runJavaScript("if (typeof clearMarkers === 'function') clearMarkers();")
         
         data = worker_service.get_active_requests(self.show_all_mode)
+        address_cache = load_address_cache()
         
         def escape_js(text):
             return str(text or "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"').replace("\n", " ").replace("\r", "")
-
-        # Читаємо кеш один раз перед циклом
-        geo_cache = load_geo_cache()
 
         for row in data:
             if row["status"] != "Виконано" and row["status"] != "Скасовано":
@@ -495,17 +503,15 @@ class ArmWorkerWindow(BaseArmWindow):
                 search_addr = row["street"].strip()
                 search_addr_lower = search_addr.lower()
                 
-                # Перевіряємо чи є ця адреса у geo_cache.json
                 lat, lon = "null", "null"
-                if search_addr_lower in geo_cache:
-                    lat = geo_cache[search_addr_lower][0]
-                    lon = geo_cache[search_addr_lower][1]
+                if search_addr_lower in address_cache:
+                    lat = address_cache[search_addr_lower][0]
+                    lon = address_cache[search_addr_lower][1]
                 
                 request_time = row["request_date"].strftime("%d.%m.%Y %H:%M") if row.get("request_date") else ""
                 applicant = f"{row['applicant_last']} {row['applicant_first']}".strip() or "Невідомо"
                 crew_num = f"Бригада №{row['crew_number']}" if row['crew_number'] else "Не призначено"
 
-                # Передаємо lat та lon як останні параметри (без лапок, бо це числа або null)
                 js = f"if(typeof addMarker==='function') addMarker('{row['id']}','{escape_js(display_addr)}','{escape_js(search_addr)}','{escape_js(row['status'])}','{escape_js(row['criticality'])}','{escape_js(row['issue_type'])}','{escape_js(row['description'])}','{escape_js(applicant)}','{escape_js(request_time)}','{escape_js(crew_num)}', {lat}, {lon});"
                 self.web_map.page().runJavaScript(js)
 
@@ -655,7 +661,7 @@ class ArmWorkerWindow(BaseArmWindow):
         scroll_layout.addWidget(group_app)
         scroll_layout.addWidget(group_req)
 
-        btn_save_req = self.create_action_button("Зберегти заявку", primary=True)
+        btn_save_req = self.create_action_button("Зберегти заявку")
         btn_save_req.clicked.connect(self.submit_request)
         scroll_layout.addWidget(btn_save_req, alignment=Qt.AlignmentFlag.AlignRight)
 
@@ -707,7 +713,6 @@ class ArmWorkerWindow(BaseArmWindow):
         self.address_thread.search(self.input_address.text().strip())
 
     def update_address_completer(self, results):
-        # Завжди оновлюємо список (навіть якщо він порожній, щоб стерти старі дані)
         self.completer_model.setStringList(results)
         if results:
             self.address_completer.complete()
@@ -760,7 +765,7 @@ class ArmWorkerWindow(BaseArmWindow):
             self.combo_mat.addItem(f"{m['name']} ({m['price']} грн/{m['unit']})", userData=m['id'])
 
         self.input_quantity = self.create_line_edit("Введіть кількість...")
-        btn_add_mat = self.create_action_button("Додати до звіту", primary=True)
+        btn_add_mat = self.create_action_button("Додати до звіту")
         btn_add_mat.clicked.connect(self.submit_material)
 
         form.addRow("ID заявки:", self.input_req_id)

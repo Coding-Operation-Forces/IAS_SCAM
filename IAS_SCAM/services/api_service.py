@@ -6,26 +6,43 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_FILE = os.path.join(BASE_DIR, "geo_cache.json")
+ADDRESS_CACHE_FILE = os.path.join(BASE_DIR, "address_cache.json") # НОВИЙ КЕШ ДЛЯ КАРТИ
 
+# --- КЕШ ДЛЯ АВТОЗАПОВНЕННЯ (ВУЛИЦІ) ---
 def load_geo_cache():
     if os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"Помилка читання кешу: {e}")
-    else:
-        print(f"Файл кешу не знайдено за шляхом: {CACHE_FILE}. Створимо новий.")
+            print(f"Помилка читання geo_cache: {e}")
     return {}
 
 def save_geo_cache(cache_data):
     try:
         with open(CACHE_FILE, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, ensure_ascii=False, indent=4)
-        print(f"Кеш успішно оновлено! Тепер у базі {len(cache_data)} адрес.")
     except Exception as e:
-        print(f"Помилка збереження кешу: {e}")
+        print(f"Помилка збереження geo_cache: {e}")
 
+# --- КЕШ ДЛЯ КАРТИ (ВУЛИЦЯ + БУДИНОК) ---
+def load_address_cache():
+    if os.path.exists(ADDRESS_CACHE_FILE):
+        try:
+            with open(ADDRESS_CACHE_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Помилка читання address_cache: {e}")
+    return {}
+
+def save_address_cache(cache_data):
+    try:
+        with open(ADDRESS_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"Помилка збереження address_cache: {e}")
+
+# --- ПОШУК ДЛЯ АВТОЗАПОВНЕННЯ (ВИКОРИСТОВУЄ geo_cache) ---
 class AddressSearchThread(QThread):
     results_ready = pyqtSignal(list)
 
@@ -44,28 +61,21 @@ class AddressSearchThread(QThread):
             
         print(f"🔍 Шукаю адресу: {self.query}")
         
-        # --- НОВИЙ БЛОК: ШВИДКИЙ ПОШУК ПО ЛОКАЛЬНОМУ КЕШУ ---
         cache = load_geo_cache()
-        # Розбиваємо введений запит на окремі слова (наприклад, "Іваш")
         query_words = [w for w in self.query.lower().replace(',', ' ').split() if len(w) > 2]
         
         if query_words:
             local_matches = []
             for cached_street in cache.keys():
-                # Перевіряємо, чи всі введені слова є в назві вулиці з кешу
                 if all(word in cached_street for word in query_words):
-                    # Робимо кожне слово з великої літери для краси (вулиця ярослава івашкевича -> Вулиця Ярослава Івашкевича)
                     formatted_street = " ".join(w.capitalize() for w in cached_street.split())
                     local_matches.append(formatted_street)
             
-            # Якщо знайшли збіги в локальному файлі — миттєво віддаємо їх і ЗУПИНЯЄМОСЬ!
             if local_matches:
                 print(f"⚡ Знайдено в локальному кеші: {local_matches}")
                 self.results_ready.emit(local_matches[:8])
                 return 
-        # ----------------------------------------------------
         
-        # Якщо в кеші нічого не знайшли — йдемо в інтернет
         try:
             url = f"https://nominatim.openstreetmap.org/search?q={self.query}, Київ&format=json&addressdetails=1&limit=8"
             headers = {'User-Agent': 'SkamCommunalApp/1.1'}
@@ -75,7 +85,6 @@ class AddressSearchThread(QThread):
                 data = response.json()
                 
                 if not data:
-                    print(f"OpenStreetMap нічого не знайшов для запиту: {self.query}")
                     self.results_ready.emit([])
                     return
 
@@ -108,7 +117,7 @@ class AddressSearchThread(QThread):
                         if is_relevant and res not in results:
                             results.append(res)
                             
-                            # Зберігаємо в кеш
+                            # Зберігаємо в geo_cache
                             if res_lower not in cache:
                                 cache[res_lower] = [lat, lon]
                                 cache_updated = True
@@ -118,7 +127,6 @@ class AddressSearchThread(QThread):
                     
                 self.results_ready.emit(results)
             else:
-                print(f"Помилка API. Код статусу: {response.status_code}")
                 self.results_ready.emit([])
         except Exception as e:
             print(f"Критична помилка API адрес: {e}")
