@@ -118,10 +118,10 @@ class Users(Base):
     full_name = Column(String(100), nullable=False)
     email = Column(String(100))
     password_hash = Column(String(255), nullable=False)
+    is_active = Column(Integer, default=1, nullable=False)
 
     # Зв'язки зворотні
     role = relationship("Roles", back_populates="users")
-    # 1 до * (Користувач може прийняти багато заявок, змінити багато статусів чи створити аудит)
     requests = relationship("Requests", back_populates="user")
     audit_logs = relationship("AuditLog", back_populates="user")
     histories = relationship("StatusHistory", back_populates="user")
