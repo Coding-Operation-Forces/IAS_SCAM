@@ -119,6 +119,8 @@ class Users(Base):
     email = Column(String(100))
     password_hash = Column(String(255), nullable=False)
     is_active = Column(Integer, default=1, nullable=False)
+    failed_attempts = Column(Integer, default=0, nullable=False)
+    lock_until = Column(DateTime, nullable=True)  # Час, до якого обліковий запис заморожено
 
     # Зв'язки зворотні
     role = relationship("Roles", back_populates="users")

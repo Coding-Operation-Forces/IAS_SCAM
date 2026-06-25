@@ -10,7 +10,7 @@ class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.is_dark_theme = True
-        
+        self.failed_attempts = 0
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.icon_path = os.path.join(self.base_dir, "icon.png")
         
@@ -77,6 +77,10 @@ class LoginWindow(QWidget):
         self.apply_theme()
 
     def perform_login(self):
+        # Якщо локальний таймер блокування ще активний — ігноруємо клік
+        if hasattr(self, 'lock_seconds_left') and self.lock_seconds_left > 0:
+            return
+
         login_text = self.login_input.text().strip()
         password_text = self.password_input.text().strip()
 
@@ -84,14 +88,66 @@ class LoginWindow(QWidget):
             QMessageBox.warning(self, "Помилка", "Будь ласка, введіть логін та пароль.")
             return
 
-        # Зберігаємо дані користувача в класі
-        self.user_data = authenticate_user(login_text, password_text)
+        # Запитуємо перевірку у сервера
+        response = authenticate_user(login_text, password_text)
 
-        if self.user_data:
-            # Замість миттєвого створення вікна, запускаємо екран завантаження
+        if response["status"] == "success":
+            self.failed_attempts = 0
+            self.user_data = response["data"]
             self.show_loading_overlay()
+
+        elif response["status"] == "locked":
+            QMessageBox.critical(self, "Безпека системи", response["message"])
+
         else:
-            QMessageBox.critical(self, "Відмова", "Невірний логін або пароль!")
+            # Обробка звичайної помилки (невірний пароль АБО неіснуючий логін)
+            self.failed_attempts += 1
+
+            # Якщо користувач помилився 3 рази підряд (неважливо, з існуючим чи вигаданим логіном)
+            if self.failed_attempts >= 3:
+                self.lock_client(60)  # Блокуємо інтерфейс на 1 хвилину
+            else:
+                # Виводимо повідомлення від сервера, додаючи кількість спроб, що залишилися
+                current_msg = response["message"]
+                if "Залишилось спроб" not in current_msg:
+                    current_msg += f"\nЗалишилось спроб до блокування клієнта: {3 - self.failed_attempts}"
+                QMessageBox.critical(self, "Відмова у доступі", current_msg)
+
+    def lock_client(self, seconds):
+        """Тимчасове блокування інтерфейсу на стороні клієнта."""
+        self.lock_seconds_left = seconds
+        self.login_input.setEnabled(False)
+        self.password_input.setEnabled(False)
+        self.login_btn.setEnabled(False)
+
+        if not hasattr(self, 'lbl_lock_warning'):
+            self.lbl_lock_warning = QLabel(self)
+            self.lbl_lock_warning.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.lbl_lock_warning.setStyleSheet("color: #FF5555; font-weight: bold;")
+            self.layout().insertWidget(self.layout().count() - 2, self.lbl_lock_warning)
+
+        self.lbl_lock_warning.setText(f"Перевищено ліміт спроб! Доступ заблоковано на {self.lock_seconds_left} сек.")
+
+        self.lock_timer = QTimer(self)
+        self.lock_timer.timeout.connect(self.update_lock_countdown)
+        self.lock_timer.start(1000)
+
+        QMessageBox.critical(self, "Безпека",
+                             "Доступ тимчасово заблоковано на 1 хвилину через 3 помилкові спроби входу!")
+
+    def update_lock_countdown(self):
+        self.lock_seconds_left -= 1
+        if self.lock_seconds_left <= 0:
+            self.lock_timer.stop()
+            self.failed_attempts = 0
+            self.login_input.setEnabled(True)
+            self.password_input.setEnabled(True)
+            self.login_btn.setEnabled(True)
+            self.lbl_lock_warning.setText("")
+            self.password_input.clear()
+        else:
+            self.lbl_lock_warning.setText(
+                f"Перевищено ліміт спроб! Доступ заблоковано на {self.lock_seconds_left} сек.")
 
     # ==========================================
     # ГЛОБАЛЬНИЙ ЕКРАН ЗАВАНТАЖЕННЯ (ПЕРЕНЕСЕНО СЮДИ)
