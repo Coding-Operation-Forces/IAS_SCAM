@@ -1,21 +1,18 @@
 import sys
 import os
-from timeit import Timer
+
 import traceback
 import ctypes
 from ctypes import wintypes
 from dotenv import load_dotenv
-from PyQt6.QtCore import Qt, QTimer, QRect
+from PyQt6.QtCore import Qt, QRect
 from PyQt6.QtWidgets import QApplication, QSplashScreen, QProgressBar
 from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont
 from config import APP_VERSION
 
-# Завантажуємо змінні з локального файлу .env на самому початку
 load_dotenv()
 
-# --- ЦЕЙ РЯДОК МАЄ БУТИ ТУТ, ДО СТВОРЕННЯ QAPPLICATION ---
 os.environ["QT_API"] = "pyqt6"
-# Додаткові налаштування для виведення внутрішніх логів Qt в консоль
 os.environ["QT_FORCE_STDERR_LOGGING"] = "1"
 
 try:
@@ -25,11 +22,8 @@ except ImportError:
 
 from ui.login_window import LoginWindow
 
-
-# =====================================================================
-#  АВТОМАТИЧНА АВТОРИЗАЦІЯ МЕРЕЖЕВОЇ ПАПКИ НА СЕРВЕРІ ЧЕРЕЗ WINDOWS API
-# =====================================================================
 class NETRESOURCE(ctypes.Structure):
+    """Структура Windows API для ідентифікації мережевого ресурсу."""
     _fields_ = [
         ('dwScope', wintypes.DWORD),
         ('dwType', wintypes.DWORD),
@@ -41,59 +35,45 @@ class NETRESOURCE(ctypes.Structure):
         ('lpProvider', wintypes.LPWSTR)
     ]
 
-
 def auto_connect_shared_folder():
-    """Безпечно та автоматично авторизує клієнта в мережевому сховищі сервера"""
-    if os.name != 'nt':  # Якщо це не Windows (наприклад, Linux), пропускаємо
+    """Автоматичне монтування віддаленого каталогу за допомогою функції WNetAddConnection2W."""
+    if os.name != 'nt':
         return
 
-    # Динамічно зчитуємо зашифровані змінні з локального .env
     remote_path = os.getenv("NET_REMOTE_PATH")
     username = os.getenv("NET_USERNAME")
     password = os.getenv("NET_PASSWORD")
 
-    # Якщо файлу .env немає або параметри порожні, перериваємо процес безпечно
     if not all([remote_path, username, password]):
         print("[NET] Попередження: Мережеві облікові дані відсутні або неповні у .env")
         return
 
     nr = NETRESOURCE()
-    nr.dwType = 1  # RESOURCETYPE_DISK (Спільна мережева папка)
+    nr.dwType = 1
     nr.lpRemoteName = remote_path
 
-    # Викликаємо функцію Windows mpr.dll
     mpr = ctypes.WinDLL('mpr', use_last_error=True)
-
-    # CONNECT_TEMPORARY (0x4) — з'єднання існує, поки активний процес додатка
-    result = mpr.WNetAddConnection2W(ctypes.byref(nr), password, username, 0x4)
+    result = mpr.WNetAddConnection2W(ctypes.byref(nr), password, username, 0x4)  # CONNECT_TEMPORARY
 
     if result == 0:
-        print(f"[NET] Успішно підключено до безпечного мережевого сховища сервера.")
+        print(f"[NET] Успішно підключено до мережевого сховища.")
     elif result == 1219:
-        print("[NET] Мережева сесія вже була успішно авторизована раніше.")
+        print("[NET] Мережева сесія вже була авторизована раніше.")
     else:
-        print(f"[NET] Попередження: Код мережевої відповіді системи Windows: {result}")
+        print(f"[NET] Попередження: Код помилки Windows API: {result}")
 
-
-# =====================================================================
-#  МАГІЧНИЙ ДЕБАГЕР: ПЕРЕХОПЛЮВАЧ КРИТИЧНИХ ПОМИЛОК EVENT LOOP PYQT
-# =====================================================================
 def qt_exception_hook(exctype, value, tb):
-    """
-    Примусово зупиняє «мовчазне» падіння 0xC0000409 і виводить у консоль
-    повний шлях, назву файлу та номери рядків, де саме стався збій.
-    """
+    """Перехоплювач необроблених винятків для забезпечення коректного логування збоїв Event Loop."""
     print("\n" + "=" * 80)
-    print(" 🚨 КРИТИЧНА ПОМИЛКА ЯДРА PYQT ПЕРЕХОПЛЕНА ДЕБАГЕРОМ 🚨")
+    print(" КРИТИЧНА ПОМИЛКА ЯДРА PYQT ")
     print("=" * 80)
     traceback.print_exception(exctype, value, tb)
     print("=" * 80 + "\n")
     sys.__excepthook__(exctype, value, tb)
     sys.exit(1)
 
-
 class DarkSplashScreen(QSplashScreen):
-    """Класична корпоративна заставка, у ТЕМНІЙ темі."""
+    """Графічний екран заставки (Splash Screen) із вбудованим індикатором прогресу ініціалізації."""
 
     def __init__(self, icon_path, version):
         width, height = 560, 320
@@ -128,17 +108,13 @@ class DarkSplashScreen(QSplashScreen):
             "QProgressBar { border: none; background-color: transparent; } QProgressBar::chunk { background-color: #8B5CF6; }")
 
     def update_progress(self, value, message):
+        """Оновлення прогрес-бару із примусовим викликом циклу обробки подій вікна."""
         self.progress_bar.setValue(value)
         self.showMessage(f"  {message}", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft, QColor("#F8F8F2"))
         QApplication.processEvents()
 
-
 def main():
-    # Підключаємо наш дебаг-хук перед запуском додатка
     sys.excepthook = qt_exception_hook
-
-    # Автоматично піднімаємо мережеве з'єднання для клієнтів (персоналу)
-    auto_connect_shared_folder()
 
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv)
@@ -150,16 +126,36 @@ def main():
     splash = DarkSplashScreen(icon_path, APP_VERSION)
     splash.show()
 
-    QTimer.singleShot(100, lambda: splash.update_progress(10, "Ініціалізація ядра системи..."))
-    QTimer.singleShot(700, lambda: splash.update_progress(40, "Встановлення з'єднання з базою даних..."))
-    QTimer.singleShot(1400, lambda: splash.update_progress(70, "Завантаження довідників та модулів..."))
-    QTimer.singleShot(2100, lambda: splash.update_progress(100, "Запуск інтерфейсу..."))
+    # Послідовне виконання реальних процедур завантаження компонентів системи
+    splash.update_progress(15, "Ініціалізація підсистем середовища...")
+    
+    splash.update_progress(45, "Авторизація доступу до файлового сервера...")
+    auto_connect_shared_folder()
 
+    splash.update_progress(75, "Перевірка доступності сервера PostgreSQL...")
+    try:
+        from services.monitoring_service import check_db_status
+        if check_db_status():
+            print("[INIT] З'єднання з базою даних успішно встановлено.")
+        else:
+            print("[INIT] Попередження: База даних недоступна.")
+    except Exception as e:
+        print(f"[INIT] Помилка під час верифікації зв'язку з БД: {e}")
+
+    splash.update_progress(90, "Кешування статичних довідників та мапінгів...")
+    try:
+        from services.worker_service import get_issue_mapping
+        get_issue_mapping()
+    except Exception as e:
+        print(f"[INIT] Помилка попереднього завантаження довідників: {e}")
+
+    splash.update_progress(100, "Підготовка інтерфейсу користувача...")
+    
     main_window = LoginWindow()
-    QTimer.singleShot(2500, lambda: (main_window.show(), splash.finish(main_window)))
+    main_window.show()
+    splash.finish(main_window)
 
     sys.exit(app.exec())
-
 
 if __name__ == "__main__":
     main()

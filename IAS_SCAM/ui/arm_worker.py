@@ -2,14 +2,17 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QTableWidget, QHeaderView, QTextEdit, QCompleter, QMenu,
                              QFormLayout, QGroupBox, QScrollArea, QMessageBox, QTableWidgetItem, QLineEdit, QDialog)
 from PyQt6.QtCore import Qt, QTimer, QStringListModel, QPoint, QUrl
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 from ui.base_arm import BaseArmWindow, StyledComboBox
 from services import worker_service, dictionary_service
-from services.api_service import AddressSearchThread, load_address_cache # ВАЖЛИВО!
+from services.api_service import AddressSearchThread, load_address_cache
+
 
 class ArmWorkerWindow(BaseArmWindow):
+    """Робоче місце оператора/диспетчера для швидкої реєстрації та обробки аварійних заявок."""
+    
     def __init__(self, user_id=None):
         super().__init__("АРМ Працівника комунального підприємства")
         self.user_id = user_id
@@ -42,6 +45,12 @@ class ArmWorkerWindow(BaseArmWindow):
         self.data_refresh_timer = QTimer(self)
         self.data_refresh_timer.timeout.connect(self.silent_refresh)
         self.data_refresh_timer.start(30000)
+
+        self.shortcut_refresh = QShortcut(QKeySequence("F5"), self)
+        self.shortcut_refresh.activated.connect(self.silent_refresh)
+        
+        self.shortcut_save = QShortcut(QKeySequence("Ctrl+S"), self)
+        self.shortcut_save.activated.connect(self.save_table_changes)
 
     def get_help_data(self):
         return {
@@ -81,6 +90,7 @@ class ArmWorkerWindow(BaseArmWindow):
         }
 
     def silent_refresh(self):
+        """Періодично оновлює дані в таблицях, якщо диспетчер зараз не редагує комбобокси."""
         has_changes = False
         if hasattr(self, 'requests_table'):
             for row in range(self.requests_table.rowCount()):
@@ -96,6 +106,7 @@ class ArmWorkerWindow(BaseArmWindow):
             self.refresh_works_table()
 
     def setup_menu(self):
+        """Ініціалізує сторінки диспетчерського пульта керування."""
         self.add_menu_item("Перегляд та обробка заявок", self.build_requests_page())
         self.add_menu_item("Реєстрація звернень", self.build_registration_page())
         self.add_menu_item("Виконання робіт", self.build_works_page())
@@ -109,13 +120,18 @@ class ArmWorkerWindow(BaseArmWindow):
             self.refresh_works_table()
 
     def get_criticality_color(self, crit_name):
+        """Повертає колір підсвічування рядка залежно від ступеня критичності аварії."""
         c = str(crit_name).lower()
-        if "критич" in c: return QColor("#552222") if self.is_dark_theme else QColor("#FFCCCC")
-        elif "висок" in c: return QColor("#553C1A") if self.is_dark_theme else QColor("#FFE5CC")
-        elif "низьк" in c: return QColor("#1A3C1A") if self.is_dark_theme else QColor("#E5FFE5")
+        if "критич" in c: 
+            return QColor("#552222") if self.is_dark_theme else QColor("#FFCCCC")
+        elif "висок" in c: 
+            return QColor("#553C1A") if self.is_dark_theme else QColor("#FFE5CC")
+        elif "низьк" in c: 
+            return QColor("#1A3C1A") if self.is_dark_theme else QColor("#E5FFE5")
         return QColor("#1F2D44") if self.is_dark_theme else QColor("#E5F2FF")
 
     def apply_theme(self):
+        """Забезпечує коректну колірну палітру для всіх таблиць та вбудованих комбобоксів."""
         super().apply_theme()
         text_color = "#F8F8F2" if self.is_dark_theme else "#2C3E50"
         bg_color = "#313244" if self.is_dark_theme else "#FFFFFF"
@@ -142,12 +158,17 @@ class ArmWorkerWindow(BaseArmWindow):
                             item.setBackground(row_bg_color)
                             
                     cb_s = self.requests_table.cellWidget(row, 7)
-                    if cb_s: cb_s.setStyleSheet(table_cb_style)
+                    if cb_s: 
+                        cb_s.setStyleSheet(table_cb_style)
                     
                     cb_c = self.requests_table.cellWidget(row, 8)
-                    if cb_c: cb_c.setStyleSheet(table_cb_style)
+                    if cb_c: 
+                        cb_c.setStyleSheet(table_cb_style)
+
+                    
 
     def create_table_filters(self, table, filter_options=None):
+        """Ініціалізує поля фільтрації та динамічно вирівнює їх за шириною колонок таблиці."""
         filter_options = filter_options or {}
         filter_widget = QWidget()
         filter_layout = QHBoxLayout(filter_widget)
@@ -155,7 +176,6 @@ class ArmWorkerWindow(BaseArmWindow):
         filter_layout.setSpacing(0)
 
         self.filter_inputs = [] 
-        
         self.corner_spacer = QWidget()
         filter_layout.addWidget(self.corner_spacer)
         
@@ -191,10 +211,10 @@ class ArmWorkerWindow(BaseArmWindow):
 
         table.horizontalHeader().sectionResized.connect(sync_widths)
         QTimer.singleShot(100, sync_widths)
-
         return filter_widget
 
     def build_requests_page(self):
+        """Створює сторінку журналювання та інтерактивної обробки заявок бригадами."""
         page = QWidget()
         main_layout = QVBoxLayout(page)
         main_layout.setContentsMargins(20, 20, 20, 20)
@@ -259,12 +279,15 @@ class ArmWorkerWindow(BaseArmWindow):
         return page
 
     def show_full_description(self, row, col):
+        """Відкриває модальну форму для повного детального читання опису поточної проблеми."""
         if col == 9: 
             item = self.requests_table.item(row, col)
-            if not item: return
+            if not item: 
+                return
             
             desc_text = item.text().strip()
-            if not desc_text: return
+            if not desc_text: 
+                return
 
             dialog = QDialog(self)
             dialog.setWindowTitle("Деталі звернення")
@@ -304,6 +327,7 @@ class ArmWorkerWindow(BaseArmWindow):
             dialog.exec()
 
     def toggle_requests_view_mode(self):
+        """Перемикає відображення між усіма заявками та лише відкритими."""
         self.show_all_mode = not self.show_all_mode
         if self.show_all_mode:
             self.btn_toggle_view.setText("Приховати закриті заявки")
@@ -312,7 +336,9 @@ class ArmWorkerWindow(BaseArmWindow):
         self.refresh_requests_table()
 
     def refresh_requests_table(self):
-        if not hasattr(self, 'requests_table'): return
+        """Підвантажує свіжі заявки та заповнює таблицю з урахуванням критичності та призначень."""
+        if not hasattr(self, 'requests_table'): 
+            return
         self.requests_table.setRowCount(0)
         data = worker_service.get_active_requests(self.show_all_mode)
         
@@ -342,7 +368,8 @@ class ArmWorkerWindow(BaseArmWindow):
                     self.requests_table.setItem(row_idx, col_idx, item)
             
             cb_status = StyledComboBox()
-            for s in self.all_statuses: cb_status.addItem(s["name"], userData=s["id"])
+            for s in self.all_statuses: 
+                cb_status.addItem(s["name"], userData=s["id"])
             cb_status.setCurrentText(row_data["status"])
             cb_status.setProperty("original_id", cb_status.currentData())
             cb_status.setProperty("request_id", row_data["id"])
@@ -354,13 +381,16 @@ class ArmWorkerWindow(BaseArmWindow):
 
             cb_crew = StyledComboBox()
             cb_crew.addItem("Не призначено", userData=0)
-            for cr in self.all_crews: cb_crew.addItem(f"Б №{cr['crew_number']} ({cr['category_name']})", userData=cr["id"])
+            for cr in self.all_crews: 
+                cb_crew.addItem(f"Б №{cr['crew_number']} ({cr['category_name']})", userData=cr["id"])
             
             saved_crew_id = row_data["crew_id"]
             if saved_crew_id:
                 idx = cb_crew.findData(saved_crew_id)
-                if idx != -1: cb_crew.setCurrentIndex(idx)
-            else: cb_crew.setCurrentIndex(0)
+                if idx != -1: 
+                    cb_crew.setCurrentIndex(idx)
+            else: 
+                cb_crew.setCurrentIndex(0)
 
             cb_crew.setProperty("original_id", cb_crew.currentData())
             cb_crew.setProperty("request_id", row_data["id"])
@@ -377,6 +407,7 @@ class ArmWorkerWindow(BaseArmWindow):
         self.refresh_map_markers()
 
     def handle_map_title_cache(self, title):
+        """Зберігає географічні координати знайденої адреси у спільний кеш-файл json."""
         if title.startswith("CACHE|"):
             parts = title.split("|")
             if len(parts) == 4:
@@ -390,6 +421,7 @@ class ArmWorkerWindow(BaseArmWindow):
                     save_address_cache(cache)
 
     def open_map_window(self):
+        """Ініціалізує та відкриває автономне вікно карти для моніторингу викликів."""
         req_id = None
         full_addr = "Всі поточні аварії міста Києва"
         
@@ -428,7 +460,6 @@ class ArmWorkerWindow(BaseArmWindow):
                 <div id="map"></div>
                 <script>
                     var kyivBounds = L.latLngBounds(L.latLng(50.33, 30.23), L.latLng(50.55, 30.83));
-                    
                     var map = L.map('map', { 
                         maxBounds: kyivBounds,
                         maxBoundsViscosity: 1.0,
@@ -509,7 +540,6 @@ class ArmWorkerWindow(BaseArmWindow):
             self.web_map.setHtml(html_content, QUrl("http://localhost"))
             self.map_window.pending_focus_id = req_id
             self.web_map.loadFinished.connect(self._on_external_map_loaded)
-            
             self.map_window.show()
         else:
             self.map_window.setWindowTitle(f"Карта інфраструктури: {full_addr}")
@@ -525,7 +555,9 @@ class ArmWorkerWindow(BaseArmWindow):
                 self.web_map.page().runJavaScript(f"if(typeof setFocusTarget==='function') setFocusTarget('{self.map_window.pending_focus_id}');")
 
     def refresh_map_markers(self):
-        if not getattr(self, 'map_window', None) or not hasattr(self, 'web_map'): return
+        """Рендерить поточні активні аварії як кольорові маркери на географічній карті."""
+        if not getattr(self, 'map_window', None) or not hasattr(self, 'web_map'): 
+            return
         self.web_map.page().runJavaScript("if (typeof clearMarkers === 'function') clearMarkers();")
         
         data = worker_service.get_active_requests(self.show_all_mode)
@@ -553,11 +585,14 @@ class ArmWorkerWindow(BaseArmWindow):
                 self.web_map.page().runJavaScript(js)
 
     def show_table_context_menu(self, pos: QPoint):
+        """Контекстне меню правого кліку для швидкої маршрутизації до інших вкладок."""
         row = self.requests_table.currentRow()
-        if row < 0: return
+        if row < 0: 
+            return
         
         id_item = self.requests_table.item(row, 0)
-        if not id_item: return
+        if not id_item: 
+            return
         req_id = id_item.text()
 
         menu = QMenu(self)
@@ -579,6 +614,7 @@ class ArmWorkerWindow(BaseArmWindow):
                 self.input_req_id.setText(str(req_id))
 
     def save_table_changes(self):
+        """Збирає змінені вручну статуси та призначення бригад і пакетно оновлює їх у БД."""
         updates = []
         for row in range(self.requests_table.rowCount()):
             cb_s = self.requests_table.cellWidget(row, 7)
@@ -604,6 +640,7 @@ class ArmWorkerWindow(BaseArmWindow):
             QMessageBox.critical(self, "Помилка", msg)
 
     def build_registration_page(self):
+        """Конструює сторінку реєстрації нових звернень з інтелектуальним автозаповненням адрес."""
         page = QWidget()
         main_layout = QVBoxLayout(page)
         main_layout.setContentsMargins(20, 20, 20, 20)
@@ -629,6 +666,7 @@ class ArmWorkerWindow(BaseArmWindow):
         self.input_account = self.create_line_edit("Введіть номер особового рахунку...")
         btn_search_acc = self.create_action_button("🔍 Знайти")
         btn_search_acc.clicked.connect(self.search_applicant)
+        self.input_account.returnPressed.connect(self.search_applicant)
         account_layout.addWidget(self.input_account)
         account_layout.addWidget(btn_search_acc)
 
@@ -684,7 +722,8 @@ class ArmWorkerWindow(BaseArmWindow):
 
         self.combo_criticality = StyledComboBox()
         crits = dictionary_service.get_criticalities()
-        for c in crits: self.combo_criticality.addItem(c["name"], userData=c["id"])
+        for c in crits: 
+            self.combo_criticality.addItem(c["name"], userData=c["id"])
 
         self.input_desc = QTextEdit()
         self.input_desc.setFixedHeight(80)
@@ -707,8 +746,10 @@ class ArmWorkerWindow(BaseArmWindow):
         return page
 
     def search_applicant(self):
+        """Знаходить та підтягує дані абонента за номером його особового рахунку."""
         account = self.input_account.text().strip()
-        if not account: return
+        if not account: 
+            return
         result = worker_service.get_applicant_by_account(account)
         if result["found"]:
             self.current_applicant_id = result["applicant_id"]
@@ -726,6 +767,7 @@ class ArmWorkerWindow(BaseArmWindow):
             QMessageBox.information(self, "Результат", "Абонента не знайдено.")
 
     def on_address_type_changed(self, text):
+        """Керує доступністю полів введення залежно від обраного режиму адресації."""
         is_auto = "Автоматично" in text
         self.input_address.setEnabled(not is_auto)
         self.input_apartment.setEnabled(not is_auto)
@@ -743,23 +785,28 @@ class ArmWorkerWindow(BaseArmWindow):
             self.input_entrance.setPlaceholderText("№ під'їзду...")
 
     def on_address_text_edited(self, text):
+        """Запускає затримку таймера автодоповнення для оптимізації кількості API-запитів."""
         if len(text) >= 3 and self.combo_address_type.currentText() != "За особовим рахунком (Автоматично)":
             self.address_timer.start(600)
 
     def trigger_address_search(self):
+        """Ініціює фоновий потік пошуку адрес через OpenStreetMap API."""
         self.address_thread.search(self.input_address.text().strip())
 
     def update_address_completer(self, results):
+        """Оновлює випадаючий список результатів інтелектуального пошуку адрес."""
         self.completer_model.setStringList(results)
         if results:
             self.address_completer.complete()
 
     def update_issue_types(self, cat):
+        """Фільтрує підлеглий список типів аварій відповідно до обраної категорії."""
         self.combo_type.clear()
         for type_id, type_name in self.issue_mapping.get(cat, []):
             self.combo_type.addItem(type_name, userData=type_id)
 
     def submit_request(self):
+        """Збирає валідовані дані форми та фіксує нове звернення у базі даних."""
         app_data = {
             "account": self.input_account.text().strip(), "lname": self.input_lname.text().strip(),
             "fname": self.input_fname.text().strip(), "mname": self.input_mname.text().strip(),
@@ -783,9 +830,11 @@ class ArmWorkerWindow(BaseArmWindow):
             QMessageBox.information(self, "Успіх", msg)
             self.refresh_requests_table()
             self.input_desc.clear()
-        else: QMessageBox.critical(self, "Помилка", msg)
+        else: 
+            QMessageBox.critical(self, "Помилка", msg)
 
     def build_works_page(self):
+        """Створює сторінку для списання товарно-матеріальних цінностей на ремонти."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -804,6 +853,8 @@ class ArmWorkerWindow(BaseArmWindow):
         self.input_quantity = self.create_line_edit("Введіть кількість...")
         btn_add_mat = self.create_action_button("Додати до звіту")
         btn_add_mat.clicked.connect(self.submit_material)
+        self.input_req_id.returnPressed.connect(self.submit_material)
+        self.input_quantity.returnPressed.connect(self.submit_material)
 
         form.addRow("ID заявки:", self.input_req_id)
         form.addRow("Матеріал:", self.combo_mat)
@@ -820,17 +871,22 @@ class ArmWorkerWindow(BaseArmWindow):
         return page
 
     def submit_material(self):
+        """Проводить списання вказаної кількості матеріалу на обрану аварійну заявку."""
         req_id = self.input_req_id.text().strip()
         qty = self.input_quantity.text().strip()
-        if not req_id or not qty or not req_id.isdigit(): return
+        if not req_id or not qty or not req_id.isdigit(): 
+            return
         success, msg = worker_service.write_off_material(int(req_id), self.combo_mat.currentData(), qty)
         if success:
             self.input_quantity.clear()
             self.refresh_works_table()
-        else: QMessageBox.critical(self, "Помилка", msg)
+        else: 
+            QMessageBox.critical(self, "Помилка", msg)
 
     def refresh_works_table(self):
-        if not hasattr(self, 'works_table'): return
+        """Оновлює зведену таблицю списань ТМЦ з бази даних."""
+        if not hasattr(self, 'works_table'): 
+            return
         self.works_table.setRowCount(0)
         data = worker_service.get_used_materials_report()
         for row in data: 

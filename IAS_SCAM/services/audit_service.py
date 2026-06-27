@@ -4,10 +4,7 @@ from db.models import AuditLog, Users
 
 
 def log_action(user_id, event_type, table_name, record_id=None, old_value=None, new_value=None):
-    """
-    Універсальна функція для збереження дій користувачів у базу даних.
-    Можна викликати в будь-якому сервісі (user_service, dictionary_service тощо).
-    """
+    """Універсальний атомарний метод для збереження дій користувачів у системний журнал аудиту."""
     if not user_id:
         return False
 
@@ -20,7 +17,7 @@ def log_action(user_id, event_type, table_name, record_id=None, old_value=None, 
                 record_id=record_id,
                 old_value=str(old_value)[:255] if old_value else None,
                 new_value=str(new_value)[:255] if new_value else None,
-                log_time=datetime.datetime.now()  # Використовуємо локальний час сервера
+                log_time=datetime.datetime.now()  
             )
             db.add(log_item)
             db.commit()
@@ -32,17 +29,14 @@ def log_action(user_id, event_type, table_name, record_id=None, old_value=None, 
 
 
 def get_all_audit_logs():
-    """Витягує всі записи аудиту з використанням безпечного LEFT JOIN."""
+    """Вивантажує повний перелік логів аудиту, використовуючи безпечний LEFT OUTER JOIN."""
     with SessionLocal() as db:
         try:
-            # Використовуємо isouter=True для створення LEFT OUTER JOIN
             logs = db.query(AuditLog).join(Users, AuditLog.user_id == Users.id_user, isouter=True) \
                 .order_by(AuditLog.log_time.desc()).all()
 
             result = []
             for l in logs:
-                # Якщо користувача немає в системі (наприклад, системний лог або видалений),
-                # замість падіння додатка виведемо "Система / Анонім"
                 user_name = l.user.full_name if l.user else "Система / Анонім"
 
                 result.append({

@@ -1,15 +1,12 @@
-# services/user_service.py
 from db.database import SessionLocal
 from db.models import Users, Roles
 from services.auth_service import hash_password
-import services.audit_service as audit_service  # Підключаємо аудит
-
+import services.audit_service as audit_service
 
 def get_all_users():
-    """Повертає тільки АКТИВНИХ користувачів для виведення в АРМ Адміністратора."""
+    """Вибірка облікових записів користувачів з активним прапорцем доступу."""
     with SessionLocal() as db:
         try:
-            # Фільтруємо за умовою is_active == 1
             users = db.query(Users).join(Roles, Users.role_id == Roles.id_role)\
                      .filter(Users.is_active == 1)\
                      .order_by(Users.id_user.asc()).all()
@@ -23,7 +20,6 @@ def get_all_users():
             print(f"Помилка завантаження користувачів: {e}")
             return []
 
-
 def get_all_roles():
     with SessionLocal() as db:
         try:
@@ -32,8 +28,8 @@ def get_all_roles():
         except Exception:
             return []
 
-
 def add_user(role_id, full_name, email, password, admin_id=1):
+    """Створення облікового запису користувача із транзакційним логуванням полів у системний аудит."""
     with SessionLocal() as db:
         try:
             new_user = Users(
@@ -45,7 +41,6 @@ def add_user(role_id, full_name, email, password, admin_id=1):
             db.add(new_user)
             db.flush()
 
-            # Атомарне логування створення кожного параметра користувача окремо
             user_fields = [
                 ("full_name", "Не існувало", full_name),
                 ("email", "Не існувало", email),
@@ -67,13 +62,12 @@ def add_user(role_id, full_name, email, password, admin_id=1):
             db.rollback()
             return False, f"Помилка БД: {str(e)}"
 
-
 def update_user(user_id, role_id, full_name, email, admin_id=1):
+    """Покрокове оновлення інформації про користувача та ізольована фіксація змін в аудиті."""
     with SessionLocal() as db:
         try:
             user = db.query(Users).filter(Users.id_user == user_id).first()
             if user:
-                # Перевіряємо та атомарно логуємо тільки ПІБ, якщо воно було змінене
                 if user.full_name != full_name:
                     audit_service.log_action(
                         user_id=admin_id, event_type="UPDATE", table_name="users.full_name",
@@ -81,7 +75,6 @@ def update_user(user_id, role_id, full_name, email, admin_id=1):
                     )
                     user.full_name = full_name
 
-                # Перевіряємо та атомарно логуємо тільки новий Email
                 if user.email != email:
                     audit_service.log_action(
                         user_id=admin_id, event_type="UPDATE", table_name="users.email",
@@ -89,7 +82,6 @@ def update_user(user_id, role_id, full_name, email, admin_id=1):
                     )
                     user.email = email
 
-                # Перевіряємо та атомарно логуємо тільки Роль
                 if user.role_id != role_id:
                     audit_service.log_action(
                         user_id=admin_id, event_type="UPDATE", table_name="users.role_id",
@@ -98,23 +90,20 @@ def update_user(user_id, role_id, full_name, email, admin_id=1):
                     user.role_id = role_id
 
                 db.commit()
-                return True, "Дані користувача оновлено!"  # <--- ВИПРАВЛЕНО: Додано логічний успішний ретурн вікна
+                return True, "Дані користувача оновлено!"
             return False, "Користувача не знайдено."
         except Exception as e:
             db.rollback()
             return False, f"Помилка БД: {str(e)}"
 
-
 def delete_user(user_id, admin_id=1):
-    """Виконує безпечне м'яке видалення (Soft Delete). Зберігає всі логи та заявки в БД."""
+    """М'яке деактивування (Soft Delete) користувача без фізичного видалення запису."""
     with SessionLocal() as db:
         try:
             user = db.query(Users).filter(Users.id_user == user_id).first()
             if user:
-                # Замість видалення з бази — деактивуємо обліковий запис!
                 user.is_active = 0
 
-                # АТОМАРНО ЛОГУЄМО ДЕАКТИВАЦІЮ (користувач ніби видалений, але дані на місці)
                 audit_service.log_action(
                     user_id=admin_id,
                     event_type="DELETE",
@@ -131,7 +120,6 @@ def delete_user(user_id, admin_id=1):
             db.rollback()
             return False, f"Помилка БД: {str(e)}"
 
-
 def reset_password(user_id, new_password, admin_id=1):
     with SessionLocal() as db:
         try:
@@ -139,7 +127,6 @@ def reset_password(user_id, new_password, admin_id=1):
             if user:
                 user.password_hash = hash_password(new_password)
 
-                # Атомарне логування скидання пароля
                 audit_service.log_action(
                     user_id=admin_id,
                     event_type="RESET_PASSWORD",

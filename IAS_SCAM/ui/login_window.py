@@ -1,22 +1,23 @@
 import os
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QLineEdit, QFrame, QMessageBox, QProgressBar)
+                             QPushButton, QLineEdit, QMessageBox, QProgressBar)
 from PyQt6.QtCore import Qt, QPropertyAnimation, QTimer
-from PyQt6.QtGui import QPixmap, QIcon
+from PyQt6.QtGui import QPixmap, QIcon, QShortcut, QKeySequence
 from services.auth_service import authenticate_user
 
 
 class LoginWindow(QWidget):
+    """Вікно авторизації користувачів із вбудованим завантажувальним оверлеєм інніціалізації АРМ."""
+    
     def __init__(self):
         super().__init__()
         self.is_dark_theme = True
-        
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.icon_path = os.path.join(self.base_dir, "icon.png")
-        
         self.init_ui()
 
     def init_ui(self):
+        """Формує віджети полів введення облікових даних та кнопкові елементи форми."""
         self.setWindowTitle("Авторизація")
         self.setWindowIcon(QIcon(self.icon_path))
         self.resize(400, 500)
@@ -63,7 +64,6 @@ class LoginWindow(QWidget):
 
         main_layout.addWidget(self.login_input)
         main_layout.addWidget(self.password_input)
-
         main_layout.addSpacing(10)
 
         self.login_btn = QPushButton("Увійти")
@@ -71,12 +71,21 @@ class LoginWindow(QWidget):
         self.login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.login_btn.setFixedHeight(50)
         self.login_btn.clicked.connect(self.perform_login)
+        self.login_input.returnPressed.connect(self.perform_login)
+        self.password_input.returnPressed.connect(self.perform_login)
+
+        self.shortcut_quit = QShortcut(QKeySequence("Ctrl+Q"), self)
+        self.shortcut_quit.activated.connect(self.close)
         main_layout.addWidget(self.login_btn)
+
+        self.shortcut_theme = QShortcut(QKeySequence("Ctrl+T"), self)
+        self.shortcut_theme.activated.connect(self.animate_theme_toggle)
 
         main_layout.addStretch()
         self.apply_theme()
 
     def perform_login(self):
+        """Автентифікує введену інформацію та запускає завантажувальний екран."""
         login_text = self.login_input.text().strip()
         password_text = self.password_input.text().strip()
 
@@ -84,20 +93,15 @@ class LoginWindow(QWidget):
             QMessageBox.warning(self, "Помилка", "Будь ласка, введіть логін та пароль.")
             return
 
-        # Зберігаємо дані користувача в класі
         self.user_data = authenticate_user(login_text, password_text)
 
         if self.user_data:
-            # Замість миттєвого створення вікна, запускаємо екран завантаження
             self.show_loading_overlay()
         else:
             QMessageBox.critical(self, "Відмова", "Невірний логін або пароль!")
 
-    # ==========================================
-    # ГЛОБАЛЬНИЙ ЕКРАН ЗАВАНТАЖЕННЯ (ПЕРЕНЕСЕНО СЮДИ)
-    # ==========================================
     def show_loading_overlay(self):
-        # Блокуємо всі кнопки, щоб користувач не натискав їх під час завантаження
+        """Блокує інтерфейс форми та розгортає плавний прогрес-бар підключення до оточення."""
         self.login_input.setEnabled(False)
         self.password_input.setEnabled(False)
         self.login_btn.setEnabled(False)
@@ -135,9 +139,10 @@ class LoginWindow(QWidget):
         self.loading_step = 0
         self.loading_timer = QTimer(self)
         self.loading_timer.timeout.connect(self.perform_loading_ticks)
-        self.loading_timer.start(35) # Швидкість заповнення
+        self.loading_timer.start(35)
 
     def perform_loading_ticks(self):
+        """Імітує крокове завантаження модулів та розгортає цільове вікно АРМ відповідно до ролі."""
         self.loading_step += 4
         self.p_bar.setValue(self.loading_step)
         
@@ -149,19 +154,17 @@ class LoginWindow(QWidget):
         elif self.loading_step >= 100:
             self.loading_timer.stop()
             
-            # Застосовуємо тему до створеного вікна
             if not self.is_dark_theme:
                 self.main_window.is_dark_theme = False
                 if hasattr(self.main_window, 'theme_btn'):
                     self.main_window.theme_btn.setText("🌙 Темна тема")
                 self.main_window.apply_theme()
             
-            # ЗМІНЕНО: Тепер саме робочий інтерфейс АРМ відкривається на весь екран!
             self.main_window.showMaximized()
             self.close()
 
     def instantiate_main_window(self):
-        """Створює екземпляр АРМ-вікна відповідно до ролі користувача"""
+        """Фабричний метод розгортання вікна АРМ на основі ідентифікатора ролі користувача."""
         role_id = self.user_data["role_id"] if isinstance(self.user_data, dict) else getattr(self.user_data, "role_id", 3)
         
         if role_id == 1:
@@ -184,10 +187,8 @@ class LoginWindow(QWidget):
                 self.main_window = ArmWorkerWindow()
                 self.main_window.user_id = worker_id
 
-    # ==========================================
-    # ЛОГІКА ЗМІНИ ТЕМИ
-    # ==========================================
     def animate_theme_toggle(self):
+        """Анімує плавний фейд перемикання теми оформлення."""
         self.fade_out_anim = QPropertyAnimation(self, b"windowOpacity")
         self.fade_out_anim.setDuration(200)
         self.fade_out_anim.setStartValue(1.0)
@@ -207,6 +208,7 @@ class LoginWindow(QWidget):
         self.fade_in_anim.start()
 
     def apply_theme(self):
+        """Формує повну дизайн-систему CSS/QSS стилів для форми авторизації."""
         if self.is_dark_theme:
             bg_color = "#1E1E2E"
             text_col = "#F8F8F2"

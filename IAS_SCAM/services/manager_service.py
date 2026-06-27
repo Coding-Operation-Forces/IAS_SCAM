@@ -1,16 +1,12 @@
-# services/manager_service.py
 import os
 import json
 import traceback
 from datetime import datetime, timedelta
-from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 from db.database import SessionLocal
 from db.models import (Requests, IssueType, Category, Status, 
                        RequestDetails, Materials, CriticalityLevels)
-
 from docx import Document
-from docx.shared import Pt, Cm
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
@@ -25,6 +21,7 @@ UKR_MONTHS = {
 }
 
 def _load_budget_data():
+    """Зчитування конфігураційного файлу розподілу бюджетних коштів."""
     if os.path.exists(BUDGET_FILE):
         try:
             with open(BUDGET_FILE, 'r', encoding='utf-8') as f:
@@ -33,6 +30,7 @@ def _load_budget_data():
     return {}
 
 def _save_budget_data(data):
+    """Збереження оновлених лімітів бюджету у конфігураційний файл."""
     with open(BUDGET_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
 
@@ -55,6 +53,7 @@ def set_budget(year, month, amount):
     _save_budget_data(data)
 
 def get_efficiency_data(start_date, end_date, category_filter):
+    """Формування статистичних даних завантаженості та ефективності категорій інцидентів."""
     with SessionLocal() as db:
         try:
             all_categories = db.query(Category).all()
@@ -98,6 +97,7 @@ def get_efficiency_data(start_date, end_date, category_filter):
         except Exception: return {"categories": [], "counts": {"new":0, "in_progress":0, "completed":0, "cancelled":0}, "chart_data": [], "chart_labels": [], "table_data": []}
 
 def get_budget_data(year, month):
+    """Агрегація фінансових витрат комунального підприємства за обраний період часу."""
     with SessionLocal() as db:
         try:
             total_budget = 0.0
@@ -107,7 +107,6 @@ def get_budget_data(year, month):
             query = db.query(RequestDetails).join(Requests).outerjoin(Materials)
             
             if month == -1:
-                # ВЕСЬ ЧАС: Жодних фільтрів по датах
                 report_title = "за весь час"
                 file_suffix = "весь_час"
                 all_data = _load_budget_data()
@@ -179,6 +178,7 @@ def get_map_statistics():
         return stats
 
 def generate_word_report(path, budget_data):
+    """Генерація текстового фінансового звіту у форматі Microsoft Word (*.docx)."""
     doc = Document()
     title = doc.add_heading('Звіт про витрати комунального підприємства', 0)
     title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
@@ -206,6 +206,7 @@ def generate_word_report(path, budget_data):
     doc.save(path)
 
 def generate_excel_report(path, budget_data):
+    """Генерація табличного фінансового документа у форматі Microsoft Excel (*.xlsx)."""
     wb = Workbook()
     ws = wb.active
     ws.title = "Витрати"
@@ -223,3 +224,51 @@ def generate_excel_report(path, budget_data):
     for col in range(1, 6): ws.cell(row=7, column=col).font = Font(bold=True)
     for row_data in budget_data['table_data']: ws.append(row_data)
     wb.save(path)
+
+def get_status_duration_statistics():
+    """Аналізує таблицю status_history для розрахунку середнього часу
+      перебування заявок у кожному зі статусів (у годинах та хвилинах)."""
+    from db.models import StatusHistory, Status
+
+    with SessionLocal() as db:
+        try:
+            histories = db.query(StatusHistory).join(Status) \
+                .order_by(StatusHistory.request_id, StatusHistory.change_date.asc()).all()
+
+            durations = {}
+
+            for i in range(len(histories) - 1):
+                current_action = histories[i]
+                next_action = histories[i + 1]
+
+                if current_action.request_id == next_action.request_id:
+                    diff_seconds = (next_action.change_date - current_action.change_date).total_seconds()
+                    status_name = current_action.status.status_name
+
+                    if status_name not in durations:
+                        durations[status_name] = []
+                    durations[status_name].append(diff_seconds)
+
+            report_data = []
+            for status_name, sec_list in durations.items():
+                avg_seconds = sum(sec_list) / len(sec_list) if sec_list else 0
+
+                hours = int(avg_seconds // 3600)
+                minutes = int((avg_seconds % 3600) // 60)
+                if hours == 0 and minutes == 0:
+                    time_str = f"{int(avg_seconds)} сек (Миттєво)"
+                else:
+                    time_str = f"{hours} год. {minutes} хв."
+
+                report_data.append({
+                    "status_name": status_name,
+                    "avg_seconds": avg_seconds,
+                    "time_display": time_str,
+                    "transitions_count": len(sec_list)
+                })
+
+            report_data.sort(key=lambda x: x["avg_seconds"], reverse=True)
+            return report_data
+        except Exception as e:
+            print(f"Помилка розрахунку SLA метрик: {e}")
+            return []

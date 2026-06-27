@@ -1,4 +1,3 @@
-# services/api_service.py
 import requests
 import json
 import os
@@ -6,10 +5,11 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_FILE = os.path.join(BASE_DIR, "geo_cache.json")
-ADDRESS_CACHE_FILE = os.path.join(BASE_DIR, "address_cache.json") # НОВИЙ КЕШ ДЛЯ КАРТИ
+ADDRESS_CACHE_FILE = os.path.join(BASE_DIR, "address_cache.json") 
 
-# --- КЕШ ДЛЯ АВТОЗАПОВНЕННЯ (ВУЛИЦІ) ---
+
 def load_geo_cache():
+    """Зчитує локальний кеш назв вулиць для прискорення автозаповнення."""
     if os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
@@ -18,15 +18,18 @@ def load_geo_cache():
             print(f"Помилка читання geo_cache: {e}")
     return {}
 
+
 def save_geo_cache(cache_data):
+    """Записує верифіковані назви вулиць у локальний кеш json."""
     try:
         with open(CACHE_FILE, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, ensure_ascii=False, indent=4)
     except Exception as e:
         print(f"Помилка збереження geo_cache: {e}")
 
-# --- КЕШ ДЛЯ КАРТИ (ВУЛИЦЯ + БУДИНОК) ---
+
 def load_address_cache():
+    """Завантажує точний кеш координат будинків (вулиця + номер будинку) для карти."""
     if os.path.exists(ADDRESS_CACHE_FILE):
         try:
             with open(ADDRESS_CACHE_FILE, 'r', encoding='utf-8') as f:
@@ -35,15 +38,18 @@ def load_address_cache():
             print(f"Помилка читання address_cache: {e}")
     return {}
 
+
 def save_address_cache(cache_data):
+    """Фіксує нові знайдені геокоординати будинків у кеш-файл."""
     try:
         with open(ADDRESS_CACHE_FILE, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, ensure_ascii=False, indent=4)
     except Exception as e:
         print(f"Помилка збереження address_cache: {e}")
 
-# --- ПОШУК ДЛЯ АВТОЗАПОВНЕННЯ (ВИКОРИСТОВУЄ geo_cache) ---
+
 class AddressSearchThread(QThread):
+    """Асинхронний фоновий потік пошуку та валідації адрес через OpenStreetMap Nominatim API."""
     results_ready = pyqtSignal(list)
 
     def __init__(self):
@@ -51,6 +57,7 @@ class AddressSearchThread(QThread):
         self.query = ""
 
     def search(self, query):
+        """Конфігурує новий пошуковий рядок та запускає фоновий робочий потік."""
         self.query = query.strip()
         self.start()
 
@@ -83,7 +90,6 @@ class AddressSearchThread(QThread):
             
             if response.status_code == 200:
                 data = response.json()
-                
                 if not data:
                     self.results_ready.emit([])
                     return
@@ -104,8 +110,8 @@ class AddressSearchThread(QThread):
                     if road:
                         res = f"{road}"
                         res_lower = res.lower()
-                        
                         is_relevant = False
+                        
                         if not query_words:
                             is_relevant = True
                         else:
@@ -116,8 +122,6 @@ class AddressSearchThread(QThread):
                         
                         if is_relevant and res not in results:
                             results.append(res)
-                            
-                            # Зберігаємо в geo_cache
                             if res_lower not in cache:
                                 cache[res_lower] = [lat, lon]
                                 cache_updated = True

@@ -1,17 +1,18 @@
-# services/auth_service.py
 import bcrypt
 from db.database import SessionLocal
 from db.models import Users
-import services.audit_service as audit_service  # <--- Додали імпорт аудиту
+import services.audit_service as audit_service  
 
 
 def hash_password(password: str) -> str:
+    """Шифрує текстовий пароль за допомогою алгоритму bcrypt."""
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
     return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Перевіряє відповідність пароля його зашифрованому хлібному зліпку."""
     try:
         return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
     except ValueError:
@@ -19,14 +20,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def authenticate_user(login_text, password_text):
-    """Перевіряє email, пароль та статус активності користувача."""
+    """Проводить повну автентифікацію сесії користувача з перевіркою прапорця активності."""
     with SessionLocal() as db:
         try:
-            # Додаємо фільтр перевірки, що користувач активний (is_active == 1)
             user = db.query(Users).filter(Users.email == login_text, Users.is_active == 1).first()
 
             if user and verify_password(password_text, user.password_hash):
-                # Логування успішного входу
                 audit_service.log_action(
                     user_id=user.id_user,
                     event_type="LOGIN",

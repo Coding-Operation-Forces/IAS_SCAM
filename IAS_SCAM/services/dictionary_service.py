@@ -1,20 +1,21 @@
-# services/dictionary_service.py
 from db.database import SessionLocal
 from db.models import Category, IssueType, Materials, Crew, Roles, Status, CriticalityLevels, CrewStatus
 import services.audit_service as audit_service
 
-# Мапінг індексів вкладки до назв таблиць для красивого відображення в Журналі
 TAB_TABLE_MAPPING = {
     0: "category", 1: "issue_type", 2: "materials", 3: "crew",
     4: "roles", 5: "status", 6: "criticality_levels", 7: "crew_status"
 }
+
 
 def get_categories():
     with SessionLocal() as db:
         try:
             items = db.query(Category).order_by(Category.id_category.asc()).all()
             return [{"id": i.id_category, "name": i.category_name} for i in items]
-        except Exception: return []
+        except Exception: 
+            return []
+
 
 def get_incident_types():
     with SessionLocal() as db:
@@ -26,7 +27,9 @@ def get_incident_types():
                 "incident_name": i.type_name,
                 "category_id": i.category_id
             } for i in items]
-        except Exception: return []
+        except Exception: 
+            return []
+
 
 def get_materials():
     with SessionLocal() as db:
@@ -38,7 +41,9 @@ def get_materials():
                 "unit": i.unit,
                 "price": float(i.price) if i.price else 0.0
             } for i in items]
-        except Exception: return []
+        except Exception: 
+            return []
+
 
 def get_crews():
     with SessionLocal() as db:
@@ -51,45 +56,55 @@ def get_crews():
                 "status": i.status.status_name if i.status else "Не визначено",
                 "category_id": i.category_id
             } for i in items]
-        except Exception: return []
+        except Exception: 
+            return []
+
 
 def get_roles():
     with SessionLocal() as db:
         try:
             items = db.query(Roles).order_by(Roles.id_role.asc()).all()
             return [{"id": i.id_role, "name": i.role_name} for i in items]
-        except Exception: return []
+        except Exception: 
+            return []
+
 
 def get_statuses():
     with SessionLocal() as db:
         try:
             items = db.query(Status).order_by(Status.id_status.asc()).all()
             return [{"id": i.id_status, "name": i.status_name} for i in items]
-        except Exception: return []
+        except Exception: 
+            return []
+
 
 def get_criticalities():
     with SessionLocal() as db:
         try:
             items = db.query(CriticalityLevels).order_by(CriticalityLevels.id_criticality.asc()).all()
             return [{"id": i.id_criticality, "name": i.level_name} for i in items]
-        except Exception: return []
+        except Exception: 
+            return []
+
 
 def get_crew_statuses():
     with SessionLocal() as db:
         try:
             items = db.query(CrewStatus).order_by(CrewStatus.id_crew_status.asc()).all()
             return [{"id": i.id_crew_status, "name": i.status_name} for i in items]
-        except Exception: return []
+        except Exception: 
+            return []
 
 
 def save_directory_item(tab_index, data, item_id=None, admin_id=1):
+    """Створює або атомарно оновлює рядок у будь-якому системному довіднику з логуванням змін подій."""
     with SessionLocal() as db:
         try:
-            if data is None: data = {}
+            if data is None: 
+                data = {}
             t_name = TAB_TABLE_MAPPING.get(tab_index, "unknown_directory")
             event = "UPDATE" if item_id else "INSERT"
 
-            # Ініціалізуємо модель залежно від обраної вкладки довідника
             if tab_index == 0:
                 model = db.query(Category).filter(Category.id_category == item_id).first() if item_id else Category()
                 old_val = model.category_name if item_id else "Не існувало"
@@ -98,11 +113,9 @@ def save_directory_item(tab_index, data, item_id=None, admin_id=1):
                 fields_to_log = [("category_name", old_val, new_val)]
 
             elif tab_index == 1:
-                model = db.query(IssueType).filter(
-                    IssueType.id_issue_type == item_id).first() if item_id else IssueType()
+                model = db.query(IssueType).filter(IssueType.id_issue_type == item_id).first() if item_id else IssueType()
                 old_cat = str(model.category_id) if item_id else "Не існувало"
                 old_name = model.type_name if item_id else "Не існувало"
-
                 model.category_id = data.get("category_id")
                 model.type_name = data.get("incident_name", "")
                 fields_to_log = [
@@ -115,7 +128,6 @@ def save_directory_item(tab_index, data, item_id=None, admin_id=1):
                 old_name = model.material_name if item_id else "Не існувало"
                 old_unit = model.unit if item_id else "Не існувало"
                 old_price = str(model.price) if item_id else "Не існувало"
-
                 model.material_name = data.get("name", "")
                 model.unit = data.get("unit", "")
                 model.price = data.get("price", 0.0)
@@ -130,7 +142,6 @@ def save_directory_item(tab_index, data, item_id=None, admin_id=1):
                 old_num = model.crew_number if item_id else "Не існувало"
                 old_cat = str(model.category_id) if item_id else "Не існувало"
                 old_stat = str(model.status_id) if item_id else "Не існувало"
-
                 model.crew_number = data.get("crew_number", "")
                 model.category_id = data.get("category_id")
                 model.status_id = data.get("status_id")
@@ -155,16 +166,14 @@ def save_directory_item(tab_index, data, item_id=None, admin_id=1):
                 fields_to_log = [("status_name", old_val, new_val)]
 
             elif tab_index == 6:
-                model = db.query(CriticalityLevels).filter(
-                    CriticalityLevels.id_criticality == item_id).first() if item_id else CriticalityLevels()
+                model = db.query(CriticalityLevels).filter(CriticalityLevels.id_criticality == item_id).first() if item_id else CriticalityLevels()
                 old_val = model.level_name if item_id else "Не існувало"
                 new_val = data.get("name", "")
                 model.level_name = new_val
                 fields_to_log = [("level_name", old_val, new_val)]
 
             elif tab_index == 7:
-                model = db.query(CrewStatus).filter(
-                    CrewStatus.id_crew_status == item_id).first() if item_id else CrewStatus()
+                model = db.query(CrewStatus).filter(CrewStatus.id_crew_status == item_id).first() if item_id else CrewStatus()
                 old_val = model.status_name if item_id else "Не існувало"
                 new_val = data.get("name", "")
                 model.status_name = new_val
@@ -175,15 +184,12 @@ def save_directory_item(tab_index, data, item_id=None, admin_id=1):
             if not item_id:
                 db.add(model)
                 db.flush()
-                rec_id = getattr(model, f"id_{t_name}", None) or getattr(model, "id_issue_type", None) or getattr(model,
-                                                                                                                  "id_criticality",
-                                                                                                                  None)
+                rec_id = getattr(model, f"id_{t_name}", None) or getattr(model, "id_issue_type", None) or getattr(model, "id_criticality", None)
             else:
                 rec_id = item_id
 
-            # Зберігаємо атомарно кожне поле довідника, що зазнало змін
             for f_name, old_f, new_f in fields_to_log:
-                if str(old_f) != str(new_f):  # Фіксуємо лог лише за наявності реальних змін
+                if str(old_f) != str(new_f):  
                     audit_service.log_action(
                         user_id=admin_id,
                         event_type=event,
@@ -199,7 +205,9 @@ def save_directory_item(tab_index, data, item_id=None, admin_id=1):
             db.rollback()
             return False, f"Помилка бази даних: {str(e)}"
 
+
 def delete_directory_item(tab_index, item_id, admin_id=1):
+    """Остаточно вилучає запис із системного довідника із попереднім логуванням події в аудит."""
     with SessionLocal() as db:
         try:
             t_name = TAB_TABLE_MAPPING.get(tab_index, "unknown_directory")
@@ -211,10 +219,10 @@ def delete_directory_item(tab_index, item_id, admin_id=1):
             elif tab_index == 5: target = db.query(Status).filter(Status.id_status == item_id).first()
             elif tab_index == 6: target = db.query(CriticalityLevels).filter(CriticalityLevels.id_criticality == item_id).first()
             elif tab_index == 7: target = db.query(CrewStatus).filter(CrewStatus.id_crew_status == item_id).first()
-            else: return False, "Невідомий довідник"
+            else: 
+                return False, "Невідомий довідник"
 
             if target:
-                # ЗАПИС У ЖУРНАЛ АУДИТУ ПЕРЕД ВИДАЛЕННЯМ
                 audit_service.log_action(
                     user_id=admin_id, event_type="DELETE", table_name=t_name,
                     record_id=item_id, old_value=f"Елемент вилучено остаточно"

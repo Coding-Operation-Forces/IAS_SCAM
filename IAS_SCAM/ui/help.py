@@ -1,19 +1,19 @@
 import os
-
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QSplitter,
+from PyQt6.QtWidgets import (QHBoxLayout, QWidget, QVBoxLayout,
                              QTreeWidget, QTreeWidgetItem, QTextBrowser)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
 
 class HelpWindow(QWidget):
+    """Спеціалізоване вікно відображення документації та інструкцій користувача."""
+    
     def __init__(self, help_data, title="Довідка", is_dark_theme=True):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(base_dir, "icon.png")
         super().__init__()
         self.help_data = help_data
         self.is_dark_theme = is_dark_theme
-
         self.text_color = "#F8F8F2" if is_dark_theme else "#2C3E50"
 
         self.setWindowTitle(title)
@@ -27,13 +27,21 @@ class HelpWindow(QWidget):
         self.apply_theme()
 
     def init_ui(self):
+        """Ініціалізує фіксований контейнер для меню та браузера тексту."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(15, 15, 15, 15)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        h_layout = QHBoxLayout()
+        h_layout.setSpacing(15)
 
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
+        self.tree.setFixedWidth(270)
+        
+        self.tree.setRootIsDecorated(False)
+        self.tree.setItemsExpandable(False) 
+        self.tree.setIndentation(15) 
+        
         self.populate_tree(self.help_data, self.tree)
         self.tree.expandAll()
         self.tree.itemClicked.connect(self.on_item_clicked)
@@ -41,12 +49,9 @@ class HelpWindow(QWidget):
         self.browser = QTextBrowser()
         self.browser.setOpenExternalLinks(True)
 
-        splitter.addWidget(self.tree)
-        splitter.addWidget(self.browser)
-
-        splitter.setSizes([250, 600])
-
-        layout.addWidget(splitter)
+        h_layout.addWidget(self.tree)
+        h_layout.addWidget(self.browser)
+        layout.addLayout(h_layout)
 
         if self.tree.topLevelItemCount() > 0:
             first_item = self.tree.topLevelItem(0)
@@ -54,6 +59,7 @@ class HelpWindow(QWidget):
             self.on_item_clicked(first_item, 0)
 
     def populate_tree(self, data, parent):
+        """Рекурсивно наповнює QTreeWidget ієрархічною структурою словника довідки."""
         if not isinstance(data, dict):
             item = QTreeWidgetItem(["Загальна інформація"])
             item.setData(0, Qt.ItemDataRole.UserRole, str(data))
@@ -64,10 +70,13 @@ class HelpWindow(QWidget):
             return
 
         for key, value in data.items():
-            item = QTreeWidgetItem([str(key)])
-            if isinstance(value, dict):
-                self.populate_tree(value, item)
+            is_node = isinstance(value, dict)
+            icon_str = "📂 " if is_node else "📄 "
+            
+            item = QTreeWidgetItem([f"{icon_str}{key}"])
+            if is_node:
                 item.setData(0, Qt.ItemDataRole.UserRole, "")
+                self.populate_tree(value, item)
             else:
                 item.setData(0, Qt.ItemDataRole.UserRole, str(value))
 
@@ -77,6 +86,7 @@ class HelpWindow(QWidget):
                 parent.addChild(item)
 
     def on_item_clicked(self, item, column):
+        """Рендерить html-контент вибраного інструкційного розділу в браузер."""
         content = item.data(0, Qt.ItemDataRole.UserRole)
 
         if content:
@@ -96,6 +106,7 @@ class HelpWindow(QWidget):
             self.browser.setHtml(empty_html)
 
     def apply_theme(self):
+        """Стилізує віджети вікна довідки відповідно до обраної глобальної теми."""
         if self.is_dark_theme:
             bg_color = "#1E1E2E"
             tree_bg = "#282A36"
@@ -151,18 +162,11 @@ class HelpWindow(QWidget):
                 padding: 15px;
             }}
 
-            /* СУЧАСНІ СКРОЛБАРИ ТУТ ТАКОЖ */
             QScrollBar:vertical {{
-                border: none;
-                background: {scroll_bg};
-                width: 10px;
-                border-radius: 5px;
-                margin: 0px;
+                border: none; background: {scroll_bg}; width: 10px; border-radius: 5px; margin: 0px;
             }}
             QScrollBar::handle:vertical {{
-                background: {scroll_handle};
-                min-height: 30px;
-                border-radius: 5px;
+                background: {scroll_handle}; min-height: 30px; border-radius: 5px;
             }}
             QScrollBar::handle:vertical:hover {{
                 background: {scroll_hover};
@@ -175,16 +179,10 @@ class HelpWindow(QWidget):
             }}
 
             QScrollBar:horizontal {{
-                border: none;
-                background: {scroll_bg};
-                height: 10px;
-                border-radius: 5px;
-                margin: 0px;
+                border: none; background: {scroll_bg}; height: 10px; border-radius: 5px; margin: 0px;
             }}
             QScrollBar::handle:horizontal {{
-                background: {scroll_handle};
-                min-width: 30px;
-                border-radius: 5px;
+                background: {scroll_handle}; min-width: 30px; border-radius: 5px;
             }}
             QScrollBar::handle:horizontal:hover {{
                 background: {scroll_hover};

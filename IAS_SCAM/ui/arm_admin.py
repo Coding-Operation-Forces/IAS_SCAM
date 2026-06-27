@@ -1,12 +1,12 @@
 import os
 import sys
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QTableWidget, QTableWidgetItem,
-                             QHeaderView, QLineEdit, QComboBox, QFormLayout,
+                             QTableWidget, QTableWidgetItem,
+                             QHeaderView, QLineEdit, QFormLayout,
                              QGroupBox, QTabWidget, QProgressBar, QMessageBox,
                              QInputDialog, QDialog, QDialogButtonBox, QTextEdit)
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QColor
+from PyQt6.QtGui import QPixmap, QColor, QShortcut, QKeySequence
 from ui.base_arm import BaseArmWindow, StyledComboBox
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -18,6 +18,8 @@ import services.audit_service as audit_service
 
 
 class DirectoryDialog(QDialog):
+    """Діалогове вікно для створення та редагування записів у системних довідниках."""
+    
     def __init__(self, parent=None, tab_index=0, current_data=None):
         super().__init__(parent)
         self.tab_index = tab_index
@@ -27,22 +29,24 @@ class DirectoryDialog(QDialog):
 
         layout = QVBoxLayout(self)
         self.form = QFormLayout()
-
         self.inputs = {}
 
-        # 0, 4, 5, 6, 7 — Прості довідники (Назва підприємства, ролі, статуси тощо)
+        # Обробка вкладок простих довідників (підприємства, ролі, статуси тощо)
         if tab_index in (0, 4, 5, 6, 7):
             self.inputs["name"] = QLineEdit()
             self.form.addRow("Назва:", self.inputs["name"])
-            if current_data: self.inputs["name"].setText(current_data.get("name", ""))
+            if current_data: 
+                self.inputs["name"].setText(current_data.get("name", ""))
 
-        elif tab_index == 1:  # Типи аварій
+        # Налаштування полів для типів аварій
+        elif tab_index == 1:  
             self.inputs["category_combo"] = StyledComboBox()
             try:
                 self.cats = ds.get_categories()
-                for c in self.cats: self.inputs["category_combo"].addItem(c["name"], c["id"])
+                for c in self.cats: 
+                    self.inputs["category_combo"].addItem(c["name"], c["id"])
             except Exception as e:
-                print(f"Помилка діалогу категорій: {e}")
+                print(f"Помилка завантаження категорій у діалог: {e}")
 
             self.inputs["incident_name"] = QLineEdit()
             self.form.addRow("Категорія системи:", self.inputs["category_combo"])
@@ -51,9 +55,11 @@ class DirectoryDialog(QDialog):
             if current_data:
                 self.inputs["incident_name"].setText(current_data.get("incident_name", ""))
                 idx = self.inputs["category_combo"].findText(current_data.get("category_name", ""))
-                if idx >= 0: self.inputs["category_combo"].setCurrentIndex(idx)
+                if idx >= 0: 
+                    self.inputs["category_combo"].setCurrentIndex(idx)
 
-        elif tab_index == 2:  # Матеріали
+        # Конфігурація полів для обліку матеріалів
+        elif tab_index == 2:  
             self.inputs["name"] = QLineEdit()
             self.inputs["unit"] = QLineEdit()
             self.inputs["price"] = QLineEdit()
@@ -66,39 +72,158 @@ class DirectoryDialog(QDialog):
                 self.inputs["unit"].setText(current_data.get("unit", ""))
                 self.inputs["price"].setText(current_data.get("price", ""))
 
-
-        elif tab_index == 3:  # Бригади
+        # Параметри для формування та призначення аварійних бригад
+        elif tab_index == 3:  
             self.inputs["crew_number"] = QLineEdit()
-            # Випадаючий список категорій (спеціалізацій)
             self.inputs["category_combo"] = StyledComboBox()
             try:
                 self.cats = ds.get_categories()
-                for c in self.cats: self.inputs["category_combo"].addItem(c["name"], c["id"])
+                for c in self.cats: 
+                    self.inputs["category_combo"].addItem(c["name"], c["id"])
             except Exception as e:
-                print(f"Помилка діалогу бригад (категорії): {e}")
-            # НОВЕ: Випадаючий список реальних статусів з бази даних!
+                print(f"Помилка завантаження спеціалізацій бригад: {e}")
+                
             self.inputs["status_combo"] = StyledComboBox()
             try:
                 self.statuses = ds.get_crew_statuses()
-                for s in self.statuses: self.inputs["status_combo"].addItem(s["name"], s["id"])
+                for s in self.statuses: 
+                    self.inputs["status_combo"].addItem(s["name"], s["id"])
             except Exception as e:
-                print(f"Помилка діалогу бригад (статуси): {e}")
+                print(f"Помилка завантаження статусів бригад: {e}")
+                
             self.form.addRow("Номер бригади:", self.inputs["crew_number"])
             self.form.addRow("Спеціалізація:", self.inputs["category_combo"])
-            self.form.addRow("Поточний статус:", self.inputs["status_combo"])  # Додали поле на форму
+            self.form.addRow("Поточний статус:", self.inputs["status_combo"])  
+            
             if current_data:
                 self.inputs["crew_number"].setText(current_data.get("crew_number", ""))
                 idx_cat = self.inputs["category_combo"].findText(current_data.get("category_name", ""))
-                if idx_cat >= 0: self.inputs["category_combo"].setCurrentIndex(idx_cat)
-                # Підставляємо збережений статус при редагуванні
+                if idx_cat >= 0: 
+                    self.inputs["category_combo"].setCurrentIndex(idx_cat)
                 idx_stat = self.inputs["status_combo"].findText(current_data.get("status", ""))
-                if idx_stat >= 0: self.inputs["status_combo"].setCurrentIndex(idx_stat)
+                if idx_stat >= 0: 
+                    self.inputs["status_combo"].setCurrentIndex(idx_stat)
 
         layout.addLayout(self.form)
         self.btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        
+        btn_ok = self.btns.button(QDialogButtonBox.StandardButton.Ok)
+        if btn_ok: 
+            btn_ok.setDefault(True)
+            
         self.btns.accepted.connect(self.accept)
         self.btns.rejected.connect(self.reject)
         layout.addWidget(self.btns)
+
+        self.shortcut_delete_user = QShortcut(QKeySequence("Delete"), self.users_table)
+        self.shortcut_delete_user.activated.connect(self.action_delete_user)
+        
+        self.shortcut_delete_dir = QShortcut(QKeySequence("Delete"), self.directory_tabs)
+        self.shortcut_delete_dir.activated.connect(self.action_delete_directory_item)
+
+
+    def get_data(self):
+        """Збирає введені в діалоговому вікні дані та повертає структурований словник."""
+        res = {}
+        if not self.inputs:
+            return res
+
+        if self.tab_index in (0, 4, 5, 6, 7):
+            res["name"] = self.inputs["name"].text().strip() if "name" in self.inputs else ""
+        elif self.tab_index == 1:
+            res["category_id"] = self.inputs["category_combo"].currentData() if "category_combo" in self.inputs else None
+            res["incident_name"] = self.inputs["incident_name"].text().strip() if "incident_name" in self.inputs else ""
+        elif self.tab_index == 2:
+            res["name"] = self.inputs["name"].text().strip() if "name" in self.inputs else ""
+            res["unit"] = self.inputs["unit"].text().strip() if "unit" in self.inputs else ""
+            price_text = self.inputs["price"].text().strip() if "price" in self.inputs else "0"
+            try:
+                res["price"] = float(price_text or 0)
+            except ValueError:
+                res["price"] = 0.0
+        elif self.tab_index == 3:
+            res["crew_number"] = self.inputs["crew_number"].text().strip() if "crew_number" in self.inputs else ""
+            res["category_id"] = self.inputs["category_combo"].currentData() if "category_combo" in self.inputs else None
+            res["status_id"] = self.inputs["status_combo"].currentData() if "status_combo" in self.inputs else None
+
+        return res
+
+
+class UserDialog(QDialog):
+    """Діалогове вікно створення та редагування облікових записів користувачів."""
+    
+    def __init__(self, parent=None, user_data=None):
+        super().__init__(parent)
+        self.setWindowTitle("Додати користувача" if not user_data else "Редагувати користувача")
+        self.setFixedSize(350, 250)
+        self.setStyleSheet("font-size: 14px;")
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        self.role_combo = StyledComboBox()
+        try:
+            self.roles = us.get_all_roles()
+            for r in self.roles:
+                self.role_combo.addItem(r["name"], r["id"])
+        except Exception as e:
+            print(f"Помилка завантаження системних ролей: {e}")
+
+        self.name_input = QLineEdit()
+        self.email_input = QLineEdit()
+
+        form.addRow("Роль:", self.role_combo)
+        form.addRow("ПІБ:", self.name_input)
+        form.addRow("Email:", self.email_input)
+
+        self.password_input = None
+        if not user_data:
+            self.password_input = QLineEdit()
+            self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+            form.addRow("Пароль:", self.password_input)
+
+        layout.addLayout(form)
+
+        self.btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btn_ok = self.btns.button(QDialogButtonBox.StandardButton.Ok)
+        if btn_ok: 
+            btn_ok.setDefault(True)
+            
+        self.btns.accepted.connect(self.accept)
+        self.btns.rejected.connect(self.reject)
+        layout.addWidget(self.btns)
+
+        if user_data:
+            self.name_input.setText(user_data['full_name'])
+            self.email_input.setText(user_data['email'])
+            idx = self.role_combo.findText(user_data['role_name'])
+            if idx >= 0: 
+                self.role_combo.setCurrentIndex(idx)
+
+    def get_data(self):
+        """Повертає інформацію про користувача, введену в поля діалогу."""
+        data = {
+            "role_id": self.role_combo.currentData(),
+            "full_name": self.name_input.text().strip(),
+            "email": self.email_input.text().strip()
+        }
+        if self.password_input:
+            data["password"] = self.password_input.text().strip()
+        return data
+
+
+class ArmAdminWindow(BaseArmWindow):
+    """Головне вікно автоматизованого робочого місця (АРМ) адміністратора системи."""
+    
+    def __init__(self, user_id=1):
+        super().__init__("АРМ Адміністратора системи")
+        self.current_admin_id = user_id
+        self.setup_menu()
+        self.init_static_table_filters()
+        self.refresh_all_data()
+        
+        self.shortcut_refresh = QShortcut(QKeySequence("F5"), self)
+        self.shortcut_refresh.activated.connect(self.refresh_all_data)
 
     def get_help_data(self):
         return {
@@ -111,7 +236,7 @@ class DirectoryDialog(QDialog):
                 <ul>
                     <li><b>Сервер бази даних:</b> Автоматично перевіряє доступність СУБД кожні 3 секунди.</li>
                     <li><b>Резервне копіювання:</b> Відображає інформацію про останній бекап. Ви можете примусово створити резервну копію бази даних, натиснувши кнопку <b>«Створити бекап зараз»</b>.</li>
-                    <li><b>Пам'ять сервера:</b> Індикатор показує відсоток використання диска та точний залишок вільного місця.</li>
+                    <li><b>Пам'ням сервера:</b> Індикатор показує відсоток використання диска та точний залишок вільного місця.</li>
                 </ul>
             """,
             "Управління користувачами": """
@@ -154,101 +279,8 @@ class DirectoryDialog(QDialog):
             """
         }
 
-    def get_data(self):
-        """Збирає введені адміністратором дані та обов'язково повертає словник res."""
-        res = {}
-
-        # Захист: якщо inputs порожній, відразу повертаємо порожній словник
-        if not self.inputs:
-            return res
-
-        if self.tab_index in (0, 4, 5, 6, 7):
-            res["name"] = self.inputs["name"].text().strip() if "name" in self.inputs else ""
-        elif self.tab_index == 1:
-            res["category_id"] = self.inputs[
-                "category_combo"].currentData() if "category_combo" in self.inputs else None
-            res["incident_name"] = self.inputs["incident_name"].text().strip() if "incident_name" in self.inputs else ""
-        elif self.tab_index == 2:
-            res["name"] = self.inputs["name"].text().strip() if "name" in self.inputs else ""
-            res["unit"] = self.inputs["unit"].text().strip() if "unit" in self.inputs else ""
-            price_text = self.inputs["price"].text().strip() if "price" in self.inputs else "0"
-            try:
-                res["price"] = float(price_text or 0)
-            except ValueError:
-                res["price"] = 0.0
-        elif self.tab_index == 3:
-            res["crew_number"] = self.inputs["crew_number"].text().strip() if "crew_number" in self.inputs else ""
-            res["category_id"] = self.inputs[
-                "category_combo"].currentData() if "category_combo" in self.inputs else None
-            res["status_id"] = self.inputs["status_combo"].currentData() if "status_combo" in self.inputs else None
-
-        return res  # <--- ПЕРЕВІРТЕ: Цей рядок має бути строго під дефом без зайвих зміщень!
-
-
-class UserDialog(QDialog):
-    def __init__(self, parent=None, user_data=None):
-        super().__init__(parent)
-        self.setWindowTitle("Додати користувача" if not user_data else "Редагувати користувача")
-        self.setFixedSize(350, 250)
-        self.setStyleSheet("font-size: 14px;")
-
-        layout = QVBoxLayout(self)
-        form = QFormLayout()
-
-        self.role_combo = StyledComboBox()
-        try:
-            self.roles = us.get_all_roles()
-            for r in self.roles:
-                self.role_combo.addItem(r["name"], r["id"])
-        except Exception as e:
-            print(f"Помилка завантаження ролей: {e}")
-
-        self.name_input = QLineEdit()
-        self.email_input = QLineEdit()
-
-        form.addRow("Роль:", self.role_combo)
-        form.addRow("ПІБ:", self.name_input)
-        form.addRow("Email:", self.email_input)
-
-        self.password_input = None
-        if not user_data:
-            self.password_input = QLineEdit()
-            self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-            form.addRow("Пароль:", self.password_input)
-
-        layout.addLayout(form)
-
-        self.btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        self.btns.accepted.connect(self.accept)
-        self.btns.rejected.connect(self.reject)
-        layout.addWidget(self.btns)
-
-        if user_data:
-            self.name_input.setText(user_data['full_name'])
-            self.email_input.setText(user_data['email'])
-            idx = self.role_combo.findText(user_data['role_name'])
-            if idx >= 0: self.role_combo.setCurrentIndex(idx)
-
-    def get_data(self):
-        data = {
-            "role_id": self.role_combo.currentData(),
-            "full_name": self.name_input.text().strip(),
-            "email": self.email_input.text().strip()
-        }
-        if self.password_input:
-            data["password"] = self.password_input.text().strip()
-        return data
-
-
-class ArmAdminWindow(BaseArmWindow):
-    def __init__(self, user_id=1):
-        super().__init__("АРМ Адміністратора системи")
-        self.current_admin_id = user_id
-        self.setup_menu()
-        self.init_static_table_filters()
-        self.refresh_all_data()
-
     def setup_menu(self):
+        """Ініціалізує навігаційне меню адміністратора та пов'язані сторінки."""
         self.add_menu_item("Моніторинг стану", self.build_monitoring_page())
         self.add_menu_item("Управління користувачами", self.build_users_page())
         self.add_menu_item("Ведення довідників", self.build_directories_page())
@@ -258,7 +290,7 @@ class ArmAdminWindow(BaseArmWindow):
         self.finalize_menu()
 
     def clear_layout(self, layout):
-        """ПОВЕРНЕНО НА МІСЦЕ: Допоміжний метод очищення макетів від старих фільтрів."""
+        """Рекурсивно очищує макет від віджетів для динамічної зміни фільтрів."""
         if layout is not None:
             while layout.count():
                 child = layout.takeAt(0)
@@ -266,6 +298,7 @@ class ArmAdminWindow(BaseArmWindow):
                     child.widget().deleteLater()
 
     def build_monitoring_page(self):
+        """Створює інтерфейс сторінки моніторингу працездатності серверів."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -310,11 +343,9 @@ class ArmAdminWindow(BaseArmWindow):
         progress_lay.addWidget(self.pbar)
         back_lay.addLayout(progress_lay)
 
-        # === НОВЕ ПОЛЕ: Відображення точного вільного місця в КБ під шкалою ===
         self.lbl_free_space = QLabel("Вільне місце на сервері: Перевірка...")
         self.lbl_free_space.setStyleSheet("color: #A6ADC8; font-size: 13px; font-weight: 500; margin-top: -5px;")
         back_lay.addWidget(self.lbl_free_space)
-        # =====================================================================
 
         btn_backup = self.create_action_button("Створити бекап зараз")
         btn_backup.clicked.connect(self.action_run_backup)
@@ -329,6 +360,7 @@ class ArmAdminWindow(BaseArmWindow):
         return page
 
     def build_users_page(self):
+        """Будує сторінку управління системними обліковими записами."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -371,6 +403,7 @@ class ArmAdminWindow(BaseArmWindow):
         return page
 
     def build_directories_page(self):
+        """Створює багатоокладковий інтерфейс для ведення нормативно-довідкової інформації."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -386,7 +419,6 @@ class ArmAdminWindow(BaseArmWindow):
         self.lay_filter_crit = QVBoxLayout()
         self.lay_filter_crew_stat = QVBoxLayout()
 
-        # 0. Вкладка Категорії
         tab_cat = QWidget()
         cat_lay = QVBoxLayout(tab_cat)
         self.table_cat = QTableWidget()
@@ -397,7 +429,6 @@ class ArmAdminWindow(BaseArmWindow):
         cat_lay.addWidget(self.table_cat)
         self.directory_tabs.addTab(tab_cat, "Категорії")
 
-        # 1. Вкладка Типи аварій
         tab_issues = QWidget()
         iss_lay = QVBoxLayout(tab_issues)
         self.table_issues = QTableWidget()
@@ -408,7 +439,6 @@ class ArmAdminWindow(BaseArmWindow):
         iss_lay.addWidget(self.table_issues)
         self.directory_tabs.addTab(tab_issues, "Типи аварій")
 
-        # 2. Вкладка Матеріали
         tab_mat = QWidget()
         mat_lay = QVBoxLayout(tab_mat)
         self.table_mat = QTableWidget()
@@ -419,7 +449,6 @@ class ArmAdminWindow(BaseArmWindow):
         mat_lay.addWidget(self.table_mat)
         self.directory_tabs.addTab(tab_mat, "Матеріали")
 
-        # 3. Вкладка Бригади
         tab_crew = QWidget()
         crew_lay = QVBoxLayout(tab_crew)
         self.table_crew = QTableWidget()
@@ -430,7 +459,6 @@ class ArmAdminWindow(BaseArmWindow):
         crew_lay.addWidget(self.table_crew)
         self.directory_tabs.addTab(tab_crew, "Бригади")
 
-        # 4. Вкладка Ролі
         tab_roles = QWidget()
         roles_lay = QVBoxLayout(tab_roles)
         self.table_roles = QTableWidget()
@@ -441,7 +469,6 @@ class ArmAdminWindow(BaseArmWindow):
         roles_lay.addWidget(self.table_roles)
         self.directory_tabs.addTab(tab_roles, "Ролі")
 
-        # 5. Вкладка Статуси заявок
         tab_status = QWidget()
         status_lay = QVBoxLayout(tab_status)
         self.table_status = QTableWidget()
@@ -452,7 +479,6 @@ class ArmAdminWindow(BaseArmWindow):
         status_lay.addWidget(self.table_status)
         self.directory_tabs.addTab(tab_status, "Статуси заявок")
 
-        # 6. Вкладка Рівні критичності
         tab_crit = QWidget()
         crit_lay = QVBoxLayout(tab_crit)
         self.table_crit = QTableWidget()
@@ -463,7 +489,6 @@ class ArmAdminWindow(BaseArmWindow):
         crit_lay.addWidget(self.table_crit)
         self.directory_tabs.addTab(tab_crit, "Критичність")
 
-        # 7. Вкладка Статуси бригад
         tab_crew_stat = QWidget()
         crew_stat_lay = QVBoxLayout(tab_crew_stat)
         self.table_crew_status = QTableWidget()
@@ -494,6 +519,7 @@ class ArmAdminWindow(BaseArmWindow):
         return page
 
     def build_audit_page(self):
+        """Ініціалізує сторінку перегляду логів та журналу аудиту операцій."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -508,10 +534,7 @@ class ArmAdminWindow(BaseArmWindow):
             "ID", "Користувач", "Час", "Дія", "Таблиця", "Старе значення", "Нове значення"
         ])
         self.table_audit.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-
-        # === ДОДАЙ ЦЕЙ РЯДОК ДЛЯ ПЕРЕХОПЛЕННЯ ПОДВІЙНОГО КЛІКУ ===
         self.table_audit.cellDoubleClicked.connect(self.show_full_audit_value)
-        # =======================================================
 
         self.lay_filter_audit = QVBoxLayout()
         layout.addLayout(self.lay_filter_audit)
@@ -523,7 +546,7 @@ class ArmAdminWindow(BaseArmWindow):
         return page
 
     def build_settings_page(self):
-        """ОБ'ЄДНАНО: Єдина сторінка налаштувань системи та розкладу авто-бекапів."""
+        """Формує сторінку глобальної конфігурації системи та параметрів автоматичного бекапу."""
         import json
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -532,17 +555,14 @@ class ArmAdminWindow(BaseArmWindow):
         group = QGroupBox("Глобальні конфігурації та авто-бекап")
         form = QFormLayout(group)
 
-        # Шлях до спільного мережевого файлу конфігурації з нашого .env
         self.config_path = os.getenv("SHARED_BACKUP_CONFIG", "backup_settings.json")
 
-        # Значення за замовчуванням на випадок, якщо файл ще не створено
         config_data = {
             "company_name": "КП 'Київжитлоспецексплуатація'",
             "mode": "Щодня",
             "custom_minutes": 1
         }
 
-        # Безпечно зчитуємо збережені дані з JSON, якщо він існує
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, "r", encoding="utf-8") as f:
@@ -550,37 +570,32 @@ class ArmAdminWindow(BaseArmWindow):
             except:
                 pass
 
-        # 1. Текстове поле для назви підприємства
         self.le_name = QLineEdit()
         self.le_name.setPlaceholderText("КП 'Київжитлоспецексплуатація'")
         self.le_name.setText(config_data.get("company_name", "КП 'Київжитлоспецексплуатація'"))
 
-        # 2. Поле IP-адреси сервера СУБД (статичне, береться з .env)
         self.le_ip = QLineEdit()
         self.le_ip.setText(os.getenv("DB_HOST", "192.168.1.5"))
         self.le_ip.setEnabled(False)
 
-        # 3. Випадаючий список режимів частоти бекапів
         self.backup_freq = StyledComboBox()
         self.backup_freq.addItems([
             "Кожну хвилину", "Щогодини", "Кожні 12 годин",
             "Щодня", "Щотижня", "Щомісяця", "Свій інтервал (хв)"
         ])
         idx = self.backup_freq.findText(config_data.get("mode", "Щодня"))
-        if idx >= 0: self.backup_freq.setCurrentIndex(idx)
+        if idx >= 0: 
+            self.backup_freq.setCurrentIndex(idx)
 
-        # 4. Текстове поле для введення власних хвилин (активується динамічно)
         self.le_custom_minutes = QLineEdit()
         self.le_custom_minutes.setPlaceholderText("Введіть хвилини...")
         self.le_custom_minutes.setText(str(config_data.get("custom_minutes", 1)))
 
-        # Логіка активації текстового поля хвилин тільки при виборі "Свій інтервал (хв)"
         self.backup_freq.currentTextChanged.connect(
             lambda text: self.le_custom_minutes.setEnabled(text == "Свій інтервал (хв)")
         )
         self.le_custom_minutes.setEnabled(self.backup_freq.currentText() == "Свій інтервал (хв)")
 
-        # Додаємо елементи на форму графічного інтерфейсу
         form.addRow("Назва підприємства:", self.le_name)
         form.addRow("IP-адреса сервера (статична):", self.le_ip)
         form.addRow("Частота авто-бекапів:", self.backup_freq)
@@ -588,16 +603,17 @@ class ArmAdminWindow(BaseArmWindow):
 
         layout.addWidget(group)
 
-        # Кнопка збереження конфігурацій
         btn_save = self.create_action_button("Зберегти настройки", primary=True)
         btn_save.clicked.connect(self.action_save_global_settings)
+        self.le_name.returnPressed.connect(self.action_save_global_settings)
+        self.le_custom_minutes.returnPressed.connect(self.action_save_global_settings)
         layout.addWidget(btn_save, alignment=Qt.AlignmentFlag.AlignRight)
 
         layout.addStretch()
         return page
 
     def action_save_global_settings(self):
-        """Зберігає назву компанії та розклад у мережевий JSON файл без участі БД."""
+        """Записує конфігураційні зміни підприємства та бекапів у загальний JSON-файл."""
         import json
         company_text = self.le_name.text().strip()
         mode = self.backup_freq.currentText()
@@ -611,12 +627,12 @@ class ArmAdminWindow(BaseArmWindow):
         if mode == "Свій інтервал (хв)":
             try:
                 custom_mins = int(minutes_text)
-                if custom_mins <= 0: raise ValueError()
+                if custom_mins <= 0: 
+                    raise ValueError()
             except ValueError:
                 QMessageBox.warning(self, "Помилка", "Введіть ціле число хвилин більше 0!")
                 return
 
-        # Збираємо всі дані у єдину структуру (включаючи назву компанії)
         new_config = {
             "company_name": company_text,
             "mode": mode,
@@ -624,16 +640,14 @@ class ArmAdminWindow(BaseArmWindow):
         }
 
         try:
-            # Запис відбувається по мережевому шляху, прописаному в нашому .env
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(new_config, f, ensure_ascii=False, indent=4)
-            QMessageBox.information(self, "Успіх",
-                                    "Глобальні налаштування комплексу успішно оновлено для всієї мережі!")
+            QMessageBox.information(self, "Успіх", "Глобальні налаштування комплексу успішно оновлено!")
         except Exception as e:
             QMessageBox.critical(self, "Помилка", f"Не вдалося записати файл конфігурації: {e}")
 
     def build_about_page(self):
-        """ПОВЕРНЕНО В КОД: Сторінка інформації про програму та логотипу."""
+        """Генерує інформаційну сторінку з логотипом та версією програмного забезпечення."""
         base_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(base_dir, "icon.png")
         page = QWidget()
@@ -660,7 +674,9 @@ class ArmAdminWindow(BaseArmWindow):
         version.setStyleSheet("font-size: 14px;")
         layout.addWidget(version, alignment=Qt.AlignmentFlag.AlignCenter)
         return page
+
     def init_static_table_filters(self):
+        """Ініціалізує фільтри пошуку для всіх таблиць на сторінці адміністратора."""
         try:
             all_roles = [r["name"] for r in us.get_all_roles()]
             f_user = self.create_table_filters(self.users_table, filter_options={1: all_roles})
@@ -678,15 +694,17 @@ class ArmAdminWindow(BaseArmWindow):
         self.lay_filter_crew_stat.addWidget(self.create_table_filters(self.table_crew_status))
 
     def refresh_all_data(self):
+        """Виконує комплексне синхронне оновлення всіх даних АРМ."""
         try:
             self.load_users_data()
             self.load_all_directories()
-            self.load_audit_data()  # <--- ДОДАНО НАШ МЕТОД ЗАВАНТАЖЕННЯ ЛОГІВ
+            self.load_audit_data()  
             self.refresh_monitoring_data()
         except Exception as e:
             print(f"Помилка наповнення даних: {e}")
 
     def load_users_data(self):
+        """Зчитує перелік користувачів з бази та відображає їх у таблиці."""
         try:
             users_data = us.get_all_users()
             self.users_table.setRowCount(0)
@@ -708,7 +726,7 @@ class ArmAdminWindow(BaseArmWindow):
             print(f"Помилка рендеру користувачів: {e}")
 
     def load_all_directories(self):
-        # Перегенерація фільтрів у стабільному шарі
+        """Оновлює вміст усіх таблиць довідників із бази даних."""
         for lay, tbl in [(self.lay_filter_cat, self.table_cat),
                          (self.lay_filter_issues, self.table_issues),
                          (self.lay_filter_mat, self.table_mat),
@@ -720,7 +738,6 @@ class ArmAdminWindow(BaseArmWindow):
             self.clear_layout(lay)
             lay.addWidget(self.create_table_filters(tbl))
 
-        # 0. Категорії
         try:
             self.table_cat.setRowCount(0)
             for r, i in enumerate(ds.get_categories()):
@@ -730,7 +747,6 @@ class ArmAdminWindow(BaseArmWindow):
         except Exception as e:
             print(f"Помилка категорій: {e}")
 
-        # 1. Типи аварій
         try:
             self.table_issues.setRowCount(0)
             for r, i in enumerate(ds.get_incident_types()):
@@ -741,7 +757,6 @@ class ArmAdminWindow(BaseArmWindow):
         except Exception as e:
             print(f"Помилка типів аварій: {e}")
 
-        # 2. Матеріали
         try:
             self.table_mat.setRowCount(0)
             for r, i in enumerate(ds.get_materials()):
@@ -753,7 +768,6 @@ class ArmAdminWindow(BaseArmWindow):
         except Exception as e:
             print(f"Помилка матеріалів: {e}")
 
-        # 3. Бригади
         try:
             self.table_crew.setRowCount(0)
             for r, i in enumerate(ds.get_crews()):
@@ -763,9 +777,8 @@ class ArmAdminWindow(BaseArmWindow):
                 self.table_crew.setItem(r, 2, QTableWidgetItem(i["category_name"]))
                 self.table_crew.setItem(r, 3, QTableWidgetItem(i["status"]))
         except Exception as e:
-            print(f"Помилка бригад: {e}")
+            print(f"Помилка brigades: {e}")
 
-        # 4. Ролі
         try:
             self.table_roles.setRowCount(0)
             for r, i in enumerate(ds.get_roles()):
@@ -775,7 +788,6 @@ class ArmAdminWindow(BaseArmWindow):
         except Exception as e:
             print(f"Помилка ролей: {e}")
 
-        # 5. Статуси заявок
         try:
             self.table_status.setRowCount(0)
             for r, i in enumerate(ds.get_statuses()):
@@ -785,7 +797,6 @@ class ArmAdminWindow(BaseArmWindow):
         except Exception as e:
             print(f"Помилка статусів: {e}")
 
-        # 6. Критичність
         try:
             self.table_crit.setRowCount(0)
             for r, i in enumerate(ds.get_criticalities()):
@@ -795,7 +806,6 @@ class ArmAdminWindow(BaseArmWindow):
         except Exception as e:
             print(f"Помилка критичності: {e}")
 
-        # 7. Статуси бригад
         try:
             self.table_crew_status.setRowCount(0)
             for r, i in enumerate(ds.get_crew_statuses()):
@@ -805,22 +815,20 @@ class ArmAdminWindow(BaseArmWindow):
         except Exception as e:
             print(f"Помилка статусів бригад: {e}")
 
-        # Захист від редагування клітинок
         for table in (self.table_cat, self.table_issues, self.table_mat, self.table_crew,
                       self.table_roles, self.table_status, self.table_crit, self.table_crew_status):
             for row in range(table.rowCount()):
                 for col in range(table.columnCount()):
                     item = table.item(row, col)
-                    if item: item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    if item: 
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
     def load_audit_data(self):
         """Зчитує дані з бази та наповнює таблицю Журналу дій користувачів."""
         try:
-            # Очищуємо старий фільтр у шарі, щоб він стабільно перемальовувався
             self.clear_layout(self.lay_filter_audit)
             self.lay_filter_audit.addWidget(self.create_table_filters(self.table_audit))
 
-            # Беремо масив логів з сервісу
             logs_data = audit_service.get_all_audit_logs()
             self.table_audit.setRowCount(0)
 
@@ -835,17 +843,15 @@ class ArmAdminWindow(BaseArmWindow):
                 item_old = QTableWidgetItem(log["old_val"])
                 item_new = QTableWidgetItem(log["new_val"])
 
-                # Блокуємо клітинки журналу від редагування (адмін може тільки дивитись)
                 for item in (item_id, item_user, item_time, item_event, item_table, item_old, item_new):
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
-                    # Робимо акцентний колір для типів дій
                     if log["event"] in ("DELETE", "BLOCK"):
-                        item_event.setForeground(QColor("#FF5555"))  # Червоний для видалення
+                        item_event.setForeground(QColor("#FF5555"))  
                     elif log["event"] in ("INSERT", "ADD"):
-                        item_event.setForeground(QColor("#50FA7B"))  # Зелений для нових записів
+                        item_event.setForeground(QColor("#50FA7B"))  
                     elif "PASSWORD" in log["event"]:
-                        item_event.setForeground(QColor("#FFB86C"))  # Помаранчевий для паролів
+                        item_event.setForeground(QColor("#FFB86C"))  
 
                 self.table_audit.setItem(row_idx, 0, item_id)
                 self.table_audit.setItem(row_idx, 1, item_user)
@@ -859,7 +865,7 @@ class ArmAdminWindow(BaseArmWindow):
             print(f"Помилка рендеру журналу дій: {e}")
 
     def action_export_audit_log(self):
-        """Експортує повний вміст таблиці аудиту (включаючи старі та нові значення) у txt файл."""
+        """Експортує відфільтровані записи журналу логування в текстовий звіт."""
         import datetime
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
@@ -867,13 +873,12 @@ class ArmAdminWindow(BaseArmWindow):
             QMessageBox.warning(self, "Увага", "Журнал дій порожній, немає чого експортувати!")
             return
 
-        # Відкриваємо стандартне вікно збереження файлу Windows
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Зберегти звіт аудиту", f"audit_report_{datetime.date.today()}.txt", "Текстові файли (*.txt)"
         )
 
         if not file_path:
-            return  # Користувач скасував збереження
+            return  
 
         try:
             with open(file_path, "w", encoding="utf-8") as f:
@@ -882,10 +887,8 @@ class ArmAdminWindow(BaseArmWindow):
                 f.write(f" Сформовано: {datetime.datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n")
                 f.write("=" * 90 + "\n\n")
 
-                # Читаємо рядки з таблиці інтерфейсу
                 exported_count = 0
                 for row in range(self.table_audit.rowCount()):
-                    # Перевіряємо, чи рядок не прихований поточним фільтром пошуку адміна
                     if self.table_audit.isRowHidden(row):
                         continue
 
@@ -897,7 +900,6 @@ class ArmAdminWindow(BaseArmWindow):
                     old_val = self.table_audit.item(row, 5).text()
                     new_val = self.table_audit.item(row, 6).text()
 
-                    # Формуємо красивий картковий вигляд для кожної події в системі
                     f.write(f"Запис логу ID: {log_id}\n")
                     f.write(f"------------------------------------------------------------------------\n")
                     f.write(f"• Користувач: {user}\n")
@@ -912,22 +914,18 @@ class ArmAdminWindow(BaseArmWindow):
 
                 f.write(f"Всього вивантажено записів: {exported_count}\n")
 
-            QMessageBox.information(self, "Успіх",
-                                    f"Журнал дій успішно експортовано!\nВивантажено записів: {exported_count}\n\nФайл: {file_path}")
+            QMessageBox.information(self, "Успіх", f"Журнал дій успішно експортовано! Вивантажено записів: {exported_count}")
         except Exception as e:
             QMessageBox.critical(self, "Помилка", f"Не вдалося зберегти звіт: {e}")
 
     def on_menu_click(self, index, btn):
-        """Перехоплює клік по меню АРМ Адміністратора та оновлює дані сторінки."""
-        # Спочатку виконуємо стандартний перехід на сторінку із base_arm.py
+        """Перехоплює натискання меню для оновлення журналу аудиту в реальному часі."""
         super().on_menu_click(index, btn)
-
-        # Індекс 3 — це сторінка "Журнал дій" (рахуємо з нуля: 0, 1, 2, 3)
         if index == 3:
-            print("[GUI] Перехід на Журнал дій: примусово завантажую логи з БД...")
             self.load_audit_data()
 
     def action_delete_user(self):
+        """Видаляє (деактивує) вибраного користувача із системи з логуванням дії."""
         selected_rows = self.users_table.selectedItems()
         if not selected_rows:
             QMessageBox.warning(self, "Увага", "Спочатку оберіть користувача в таблиці!")
@@ -937,7 +935,6 @@ class ArmAdminWindow(BaseArmWindow):
         reply = QMessageBox.question(self, "Підтвердження", "Ви впевнені, що хочете видалити цього користувача?",
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
-            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА:
             success, msg = us.delete_user(user_id, self.current_admin_id)
             if success:
                 self.load_users_data()
@@ -945,6 +942,7 @@ class ArmAdminWindow(BaseArmWindow):
                 QMessageBox.critical(self, "Помилка", msg)
 
     def get_selected_user_id(self):
+        """Повертає ID користувача, виділеного у головній таблиці."""
         selected_rows = self.users_table.selectedItems()
         if not selected_rows:
             QMessageBox.warning(self, "Увага", "Будь ласка, оберіть користувача в таблиці.")
@@ -952,6 +950,7 @@ class ArmAdminWindow(BaseArmWindow):
         return int(self.users_table.item(selected_rows[0].row(), 0).text())
 
     def action_add_user(self):
+        """Ініціалізує процес додавання нового користувача через діалогову форму."""
         dialog = UserDialog(self)
         dialog.setStyleSheet(self.styleSheet())
         if dialog.exec():
@@ -959,7 +958,6 @@ class ArmAdminWindow(BaseArmWindow):
             if not data["full_name"] or not data["password"]:
                 QMessageBox.warning(self, "Помилка", "ПІБ та Пароль є обов'язковими!")
                 return
-            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА ОСТАННІМ ПАРАМЕТРОМ:
             success, msg = us.add_user(data["role_id"], data["full_name"], data["email"], data["password"],
                                        self.current_admin_id)
             if success:
@@ -968,8 +966,10 @@ class ArmAdminWindow(BaseArmWindow):
                 QMessageBox.critical(self, "Помилка", msg)
 
     def action_edit_user(self):
+        """Запускає редагування параметрів існуючого користувача."""
         user_id = self.get_selected_user_id()
-        if not user_id: return
+        if not user_id: 
+            return
         row = self.users_table.selectedItems()[0].row()
         current_data = {
             "role_name": self.users_table.item(row, 1).text(),
@@ -980,7 +980,6 @@ class ArmAdminWindow(BaseArmWindow):
         dialog.setStyleSheet(self.styleSheet())
         if dialog.exec():
             data = dialog.get_data()
-            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА:
             success, msg = us.update_user(user_id, data["role_id"], data["full_name"], data["email"],
                                           self.current_admin_id)
             if success:
@@ -989,12 +988,13 @@ class ArmAdminWindow(BaseArmWindow):
                 QMessageBox.critical(self, "Помилка", msg)
 
     def action_reset_password(self):
+        """Встановлює новий пароль для облікового запису користувача."""
         user_id = self.get_selected_user_id()
-        if not user_id: return
+        if not user_id: 
+            return
         new_password, ok = QInputDialog.getText(self, "Скидання пароля", "Введіть новий пароль:",
                                                 QLineEdit.EchoMode.Password)
         if ok and new_password.strip():
-            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА:
             success, msg = us.reset_password(user_id, new_password.strip(), self.current_admin_id)
             if success:
                 QMessageBox.information(self, "Успіх", msg)
@@ -1002,6 +1002,7 @@ class ArmAdminWindow(BaseArmWindow):
                 QMessageBox.critical(self, "Помилка", msg)
 
     def refresh_monitoring_data(self):
+        """Оновлює показники стану бази даних, зайнятого дискового простору та вільного місця."""
         try:
             if ms.check_db_status():
                 self.db_indicator.setText("● Працює")
@@ -1010,19 +1011,17 @@ class ArmAdminWindow(BaseArmWindow):
                 self.db_indicator.setText("● Відключено")
                 self.db_indicator.setStyleSheet("color: #FF5555; font-weight: bold;")
 
-            # Оновлюємо шкалу відсотка диска сервера
             self.pbar.setValue(ms.get_disk_usage_percent())
 
-            # === НОВЕ: Оновлюємо точний обсяг вільного місця в КБ з розділювачем пробілів ===
             free_kb = ms.get_disk_free_kb()
             formatted_kb = f"{free_kb:,}".replace(",", " ")
             self.lbl_free_space.setText(f"Вільне місце на сервері: {formatted_kb} КБ")
-            # ===============================================================================
 
         except Exception as e:
             print(f"Помилка таймера моніторингу: {e}")
 
     def action_run_backup(self):
+        """Виконує створення повної резервної копії бази даних у ручному режимі."""
         success, message = ms.create_system_backup()
         if success:
             self.lbl_backup_time.setText(f"Останній бекап: {ms.get_last_backup_time()}")
@@ -1032,6 +1031,7 @@ class ArmAdminWindow(BaseArmWindow):
             QMessageBox.critical(self, "Помилка", message)
 
     def get_active_directory_table_and_index(self):
+        """Повертає індекс та об'єкт поточної відкритої таблиці довідника."""
         idx = self.directory_tabs.currentIndex()
         tables = {
             0: self.table_cat, 1: self.table_issues, 2: self.table_mat,
@@ -1041,11 +1041,11 @@ class ArmAdminWindow(BaseArmWindow):
         return idx, tables.get(idx)
 
     def action_add_directory_item(self):
+        """Додає новий запис у поточний активний системний довідник."""
         tab_idx, table = self.get_active_directory_table_and_index()
         dialog = DirectoryDialog(self, tab_index=tab_idx)
         dialog.setStyleSheet(self.styleSheet())
         if dialog.exec():
-            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА ОСТАННІМ ПАРАМЕТРОМ (admin_id):
             success, msg = ds.save_directory_item(tab_idx, dialog.get_data(), admin_id=self.current_admin_id)
             if success:
                 self.load_all_directories()
@@ -1053,6 +1053,7 @@ class ArmAdminWindow(BaseArmWindow):
                 QMessageBox.critical(self, "Помилка", msg)
 
     def action_edit_directory_item(self):
+        """Редагує вибраний рядок активного системного довідника."""
         tab_idx, table = self.get_active_directory_table_and_index()
         selected = table.selectedItems()
         if not selected:
@@ -1080,7 +1081,6 @@ class ArmAdminWindow(BaseArmWindow):
         dialog = DirectoryDialog(self, tab_index=tab_idx, current_data=current_data)
         dialog.setStyleSheet(self.styleSheet())
         if dialog.exec():
-            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА (item_id передається третім, admin_id — четвертим):
             success, msg = ds.save_directory_item(tab_idx, dialog.get_data(), item_id=item_id,
                                                   admin_id=self.current_admin_id)
             if success:
@@ -1089,6 +1089,7 @@ class ArmAdminWindow(BaseArmWindow):
                 QMessageBox.critical(self, "Помилка", msg)
 
     def action_delete_directory_item(self):
+        """Остаточно вилучає запис із активного довідника, якщо немає обмежень цілісності БД."""
         tab_idx, table = self.get_active_directory_table_and_index()
         selected = table.selectedItems()
         if not selected:
@@ -1099,7 +1100,6 @@ class ArmAdminWindow(BaseArmWindow):
         reply = QMessageBox.question(self, "Підтвердження", "Ви впевнені, що хочете видалити цей довідниковий запис?",
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
-            # ПЕРЕДАЄМО ДИНАМІЧНИЙ ID АДМІНІСТРАТОРА:
             success, msg = ds.delete_directory_item(tab_idx, item_id, self.current_admin_id)
             if success:
                 self.load_all_directories()
@@ -1107,8 +1107,7 @@ class ArmAdminWindow(BaseArmWindow):
                 QMessageBox.critical(self, "Обмеження видалення", msg)
 
     def show_full_audit_value(self, row, col):
-        """Відкриває модальне вікно з повним вмістом для полів Старе/Нове значення."""
-        # Індекси колонок: 5 — Старе значення, 6 — Нове значення
+        """Відкриває детальне модальне вікно для зручного читання логів старого/нового стану полів."""
         if col not in (5, 6):
             return
 
@@ -1118,12 +1117,10 @@ class ArmAdminWindow(BaseArmWindow):
 
         text_content = item.text().strip()
         if not text_content or text_content == "—":
-            return  # Якщо там порожньо або прочерк, вікно не відкриваємо
+            return  
 
-        # Визначаємо заголовок вікна залежно від колонки
         col_header = "Старе значення змін" if col == 5 else "Нове значення змін"
 
-        # Створюємо віконце діалогу
         dialog = QDialog(self)
         dialog.setWindowTitle(col_header)
         dialog.resize(550, 380)
@@ -1135,12 +1132,10 @@ class ArmAdminWindow(BaseArmWindow):
         title = QLabel(f"Повний технічний зліпок події (Рядок ID: {self.table_audit.item(row, 0).text()}):")
         title.setStyleSheet("font-size: 15px; font-weight: bold; color: #8B5CF6;")
 
-        # Текстове поле з підтримкою копіювання та прокрутки
         text_edit = QTextEdit()
         text_edit.setPlainText(text_content)
-        text_edit.setReadOnly(True)  # Тільки для читання
+        text_edit.setReadOnly(True)  
 
-        # Стилізуємо віконце під поточну тему (Темна/Світла)
         if self.is_dark_theme:
             dialog.setStyleSheet("QDialog { background-color: #282A36; color: #F8F8F2; }")
             text_edit.setStyleSheet(

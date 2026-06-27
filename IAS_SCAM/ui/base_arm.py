@@ -1,14 +1,14 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
-                             QPushButton, QStackedWidget, QLabel, QFrame, QApplication,
-                             QTableWidget, QLineEdit, QComboBox, QTextEdit, QGroupBox,
-                             QTabWidget, QTableWidgetItem)
+                             QPushButton, QStackedWidget, QLabel, QFrame,
+                             QLineEdit, QComboBox, QTableWidgetItem)
 from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, QPoint, QTimer
-from PyQt6.QtGui import QIcon, QPainter, QPen, QColor
+from PyQt6.QtGui import QIcon, QPainter, QPen, QColor, QShortcut, QKeySequence
 import os
 import services.audit_service as audit_service
 
 
 class StyledComboBox(QComboBox):
+    """Кастомізований випадаючий список із покращеним графічним рендером стрілки."""
     arrow_color = QColor("#CDD6F4")
     accent_color = QColor("#8B5CF6")
 
@@ -37,6 +37,8 @@ class StyledComboBox(QComboBox):
 
 
 class BaseArmWindow(QWidget):
+    """Абстрактний базовий клас вікна АРМ з уніфікованим інтерфейсом, боковим меню та темами."""
+    
     def __init__(self, title):
         super().__init__()
         self.title_text = title
@@ -47,6 +49,7 @@ class BaseArmWindow(QWidget):
         self.init_base_ui()
 
     def init_base_ui(self):
+        """Ініціалізує базові елементи структури інтерфейсу та гарячі клавіші."""
         base_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(base_dir, "icon.png")
         self.setWindowTitle(self.title_text)
@@ -95,7 +98,17 @@ class BaseArmWindow(QWidget):
         main_layout.addWidget(self.sidebar)
         main_layout.addWidget(content_widget)
 
+        self.shortcut_help = QShortcut(QKeySequence("F1"), self)
+        self.shortcut_help.activated.connect(self.show_help_window)
+        
+        self.shortcut_theme = QShortcut(QKeySequence("Ctrl+T"), self)
+        self.shortcut_theme.activated.connect(self.animate_theme_toggle)
+        
+        self.shortcut_logout = QShortcut(QKeySequence("Ctrl+Q"), self)
+        self.shortcut_logout.activated.connect(self.perform_logout)
+
     def add_menu_item(self, text, page_widget):
+        """Додає новий функціональний розділ до бокового меню навігації."""
         btn = QPushButton(text)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.menu_buttons.append(btn)
@@ -103,18 +116,22 @@ class BaseArmWindow(QWidget):
         self.stacked_widget.addWidget(page_widget)
         btn.clicked.connect(lambda checked=False, idx=index, b=btn: self.on_menu_click(idx, b))
         self.sidebar_layout.addWidget(btn)
-        if index == 0: self.active_button = btn
+        if index == 0: 
+            self.active_button = btn
 
     def on_menu_click(self, index, btn):
+        """Обробляє подію кліку по боковому меню з перемиканням активного контейнера сторінки."""
         self.stacked_widget.setCurrentIndex(index)
         self.active_button = btn
         self.apply_theme()
 
     def finalize_menu(self):
+        """Фіналізує бокове меню, додаючи службові системні кнопки керування сесією."""
         self.sidebar_layout.addStretch()
 
         for btn in self.menu_buttons:
-            if "Довідка" in btn.text(): btn.hide()
+            if "Довідка" in btn.text(): 
+                btn.hide()
 
         self.btn_help = QPushButton("❓ Довідка")
         self.btn_help.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -134,10 +151,13 @@ class BaseArmWindow(QWidget):
         self.apply_theme()
 
     def show_help_window(self):
+        """Ініціалізує та відкриває модальне вікно документації."""
         from ui.help import HelpWindow
         try:
-            if self.help_window is not None: self.help_window.windowTitle()
-        except RuntimeError: self.help_window = None
+            if self.help_window is not None: 
+                self.help_window.windowTitle()
+        except RuntimeError: 
+            self.help_window = None
 
         if self.help_window is None:
             self.help_window = HelpWindow(self.get_help_data(), f"Довідка: {self.title_text}", self.is_dark_theme)
@@ -152,6 +172,7 @@ class BaseArmWindow(QWidget):
         return {"Довідка": "<p>Універсальна довідка</p>"}
 
     def create_table_filters(self, table, filter_options=None):
+        """Автоматично формує верхні горизонтальні поля швидкої конфігурації пошуку по таблицях."""
         filter_options = filter_options or {}
         filter_widget = QWidget()
         filter_layout = QHBoxLayout(filter_widget)
@@ -188,25 +209,29 @@ class BaseArmWindow(QWidget):
         def sync_widths():
             v_header_width = table.verticalHeader().width()
             self.corner_spacer.setFixedWidth(v_header_width)
-            for c, widget in self.filter_inputs: widget.setFixedWidth(table.columnWidth(c))
+            for c, widget in self.filter_inputs: 
+                widget.setFixedWidth(table.columnWidth(c))
 
         table.horizontalHeader().sectionResized.connect(sync_widths)
         QTimer.singleShot(100, sync_widths)
         return filter_widget
 
     def filter_table(self, table, inputs):
+        """Проводить миттєву фільтрацію клітинок таблиці на основі введених значень."""
         for row in range(table.rowCount()):
             match = True
             for col, widget in inputs:
                 if isinstance(widget, QComboBox):
                     filter_text = widget.currentText().lower().strip()
-                    if filter_text == "всі": filter_text = ""
+                    if filter_text == "всі": 
+                        filter_text = ""
                 else:
                     filter_text = widget.text().lower().strip()
 
                 if filter_text:
                     cell_widget = table.cellWidget(row, col)
-                    if isinstance(cell_widget, QComboBox): item_text = cell_widget.currentText().lower()
+                    if isinstance(cell_widget, QComboBox): 
+                        item_text = cell_widget.currentText().lower()
                     else:
                         item = table.item(row, col)
                         item_text = item.text().lower() if item else ""
@@ -222,15 +247,12 @@ class BaseArmWindow(QWidget):
         for col_idx, data in enumerate(row_data):
             table.setItem(row_idx, col_idx, QTableWidgetItem(str(data)))
 
-    # ========================================================
-    # ІДЕАЛЬНА КНОПКА: Жорстко копіюємо стиль кнопки "Увійти"
-    # ========================================================
     def create_action_button(self, text, **kwargs):
+        """Фабрика створення кнопок дій із жорстким inline-стилем під дизайн-систему Purple."""
         btn = QPushButton(text)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setFixedHeight(42) # Робимо їх високими і зручними
+        btn.setFixedHeight(42) 
         
-        # Жорсткий стиль, який не зможе перебити жодна тема
         btn.setStyleSheet("""
             QPushButton { 
                 background-color: #8B5CF6; 
@@ -253,13 +275,10 @@ class BaseArmWindow(QWidget):
         return le
 
     def perform_logout(self):
-
-        # Визначаємо активного користувача (якщо у вікна є збережений id)
-        # Наприклад, в АРМ Адміна це self.current_admin_id, в АРМ Працівника — self.user_id
+        """Проводить коректну деавторизацію поточної сесії користувача з записом у журнал аудиту."""
         active_user_id = getattr(self, "current_admin_id", None) or getattr(self, "user_id", None) or 1
 
         try:
-            # Логуємо дію виходу
             audit_service.log_action(
                 user_id=active_user_id,
                 event_type="LOGOUT",
@@ -271,16 +290,18 @@ class BaseArmWindow(QWidget):
         except Exception as e:
             print(f"Не вдалося записати лог виходу: {e}")
 
-        # Твій стандартний код виходу, що вже написаний у base_arm.py:
         from ui.login_window import LoginWindow
         self.login_window = LoginWindow()
         self.login_window.show()
         try:
-            if self.help_window is not None: self.help_window.close()
-        except RuntimeError: pass
+            if self.help_window is not None: 
+                self.help_window.close()
+        except RuntimeError: 
+            pass
         self.close()
 
     def toggle_sidebar(self):
+        """Анімує плавне згортання та розгортання бокової панелі (гамбургер-меню)."""
         width = self.sidebar.width()
         new_width = 0 if width == 230 else 230
         self.anim_group = QParallelAnimationGroup()
@@ -302,6 +323,7 @@ class BaseArmWindow(QWidget):
         self.anim_group.start()
 
     def animate_theme_toggle(self):
+        """Запускає плавну крос-фейд анімацію згасання вікна для зміни колірної схеми."""
         self.fade_out_anim = QPropertyAnimation(self, b"windowOpacity")
         self.fade_out_anim.setDuration(200)
         self.fade_out_anim.setStartValue(1.0)
@@ -310,16 +332,20 @@ class BaseArmWindow(QWidget):
         self.fade_out_anim.start()
 
     def toggle_theme(self):
+        """Змінює внутрішній прапорець теми та ініціює повне перемальовування CSS."""
         self.is_dark_theme = not self.is_dark_theme
-        if self.is_dark_theme: self.theme_btn.setText("🌞 Світла тема")
-        else: self.theme_btn.setText("🌙 Темна тема")
+        if self.is_dark_theme: 
+            self.theme_btn.setText("🌞 Світла тема")
+        else: 
+            self.theme_btn.setText("🌙 Темна тема")
 
         self.apply_theme()
         try:
             if self.help_window is not None:
                 self.help_window.is_dark_theme = self.is_dark_theme
                 self.help_window.apply_theme()
-        except RuntimeError: self.help_window = None
+        except RuntimeError: 
+            self.help_window = None
 
         self.fade_in_anim = QPropertyAnimation(self, b"windowOpacity")
         self.fade_in_anim.setDuration(250)
@@ -328,6 +354,7 @@ class BaseArmWindow(QWidget):
         self.fade_in_anim.start()
 
     def apply_theme(self):
+        """Застосовує глобальні стилі QSS (темні або світлі) до всієї ієрархії компонентів вікна."""
         if self.is_dark_theme:
             sidebar_bg = "#1E1E2E"
             top_bar_bg = "#282A36"
@@ -380,8 +407,10 @@ class BaseArmWindow(QWidget):
 
         btn_bottom_style = f"QPushButton {{ background-color: transparent; color: {btn_color}; text-align: left; padding: 12px 15px; border: none; font-size: 14px; font-weight: 500; border-radius: 6px; }} QPushButton:hover {{ background-color: {hover_bg}; color: {text_color}; }}"
 
-        if hasattr(self, 'btn_help'): self.btn_help.setStyleSheet(btn_bottom_style)
-        if hasattr(self, 'theme_btn'): self.theme_btn.setStyleSheet(btn_bottom_style)
+        if hasattr(self, 'btn_help'): 
+            self.btn_help.setStyleSheet(btn_bottom_style)
+        if hasattr(self, 'theme_btn'): 
+            self.theme_btn.setStyleSheet(btn_bottom_style)
         if hasattr(self, 'btn_logout'):
             self.btn_logout.setStyleSheet("QPushButton { background-color: transparent; color: #FF5555; text-align: left; padding: 12px 15px; border: none; font-size: 14px; font-weight: bold; border-radius: 6px; } QPushButton:hover { background-color: rgba(255, 85, 85, 0.15); }")
 
@@ -398,9 +427,9 @@ class BaseArmWindow(QWidget):
                 lbl.setStyleSheet(f"color: {color}; font-weight: bold; font-size: 32px; border: none;")
 
         StyledComboBox.arrow_color = QColor(arrow_color)
-        for cb in self.findChildren(QComboBox): cb.update()
+        for cb in self.findChildren(QComboBox): 
+            cb.update()
 
-        # ГЛОБАЛЬНИЙ СТИЛЬ ТЕПЕР НЕ ЧІПАЄ КНОПКИ ДІЙ (вони налаштовані жорстко вище)
         global_style = f"""
             QLabel {{ color: {text_color}; }} 
             QLabel#stat_title {{ color: {'#A6ADC8' if self.is_dark_theme else '#6C757D'}; font-weight: bold; font-size: 14px; border: none; }}
@@ -459,5 +488,4 @@ class BaseArmWindow(QWidget):
             QCalendarWidget QAbstractItemView:enabled {{ color: {text_color}; background-color: {input_bg}; selection-background-color: {accent_color}; selection-color: white; }}
             QCalendarWidget QAbstractItemView:disabled {{ color: {placeholder_color}; }}
         """
-
         self.setStyleSheet(global_style)

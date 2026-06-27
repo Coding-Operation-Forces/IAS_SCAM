@@ -1,25 +1,36 @@
-import csv
 import json
 from datetime import datetime
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QTableWidget, QHeaderView, QFileDialog, QMessageBox,
                              QGroupBox, QFrame, QGridLayout, QLineEdit, QDialog, 
-                             QTreeWidget, QTreeWidgetItem, QDateEdit, QSpinBox, QAbstractItemView, QMenu)
+                             QTreeWidget, QTreeWidgetItem, QDateEdit, QSpinBox,
+                             QAbstractItemView, QMenu, QTableWidgetItem)
 from PyQt6.QtCore import Qt, QUrl, QDate, QPoint
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence
 from ui.base_arm import BaseArmWindow, StyledComboBox
 from services import manager_service, worker_service
-from services.api_service import load_address_cache, save_address_cache # Використовуємо новий кеш!
+from services.api_service import load_address_cache
 
 MONTHS_LIST = ["Січень", "Лютий", "Березень", "Квітень", "Травень", "Червень", 
                "Липень", "Серпень", "Вересень", "Жовтень", "Листопад", "Грудень"]
 
+
 class ArmManagerWindow(BaseArmWindow):
+    """Робоче місце керівника комунального підприємства з геоаналітикою та фінансовим контролем."""
+    
     def __init__(self):
         super().__init__("АРМ Керівника комунального підприємства")
         self.setup_menu()
+        self.refresh_map()
+        self.refresh_budget()
         
+        self.shortcut_refresh = QShortcut(QKeySequence("F5"), self)
+        self.shortcut_refresh.activated.connect(self.refresh_all_manager_data)
+
+    def refresh_all_manager_data(self):
+        """Повноцінно синхронізує показники ефективності, карту інфраструктури та фінансові ліміти."""
+        self.refresh_efficiency()
         self.refresh_map()
         self.refresh_budget()
 
@@ -62,19 +73,32 @@ class ArmManagerWindow(BaseArmWindow):
                     <li><b>Деталізація:</b> У таблиці наведено список всіх списаних матеріалів із прив'язкою до заявок.</li>
                     <li><b>Експорт:</b> Доступна генерація офіційних звітів у форматах <b>Microsoft Word (.docx)</b> та <b>Excel (.xlsx)</b> за вибраний звітний період.</li>
                 </ul>
+            """,
+            "Оперативність служб": """
+                <h3>Оперативність служб (Аналіз швидкості)</h3>
+                <p>Розділ призначений для моніторингу швидкості реагування комунальних бригад та виявлення затримок на всіх етапах життєвого циклу заявок.</p>
+                <ul>
+                    <li><b>Горизонтальна діаграма:</b> Наочно візуалізує середню тривалість перебування звернень у кожному статусі в годинах. Що довша смуга — то більше часу витрачається на цей етап.</li>
+                    <li><b>Детальна таблиця:</b> Відображає точний розрахунок часу та загальну кількість зафіксованих системою змін статусів.</li>
+                    <li><b>Кольорове інформування:</b> Система автоматично підсвічує критичні затримки:
+                        <span style='color:#FF5555; font-weight:bold;'>Червоний колір</span> — простій у статусі більше 24 годин;
+                        <span style='color:#FFB86C; font-weight:bold;'>Помаранчевий колір</span> — затримка більше 3 годин.
+                    </li>
+                    <li><b>Оновлення даних:</b> Кнопка "Оновити аналітику" дозволяє перерахувати показники на основі останніх дій персоналу в реальному часі.</li>
+                </ul>
             """
         }
 
     def setup_menu(self):
+        """Ініціалізує основні аналітичні вкладки інтерфейсу керівника."""
         self.add_menu_item("Ефективність роботи", self.build_efficiency_page())
         self.add_menu_item("Карта інфраструктури", self.build_map_page())
         self.add_menu_item("Контроль бюджету", self.build_budget_page())
+        self.add_menu_item("Оперативність служб", self.build_sla_page())
         self.finalize_menu()
 
-    # ==========================================
-    # 1. АНАЛІЗ ЕФЕКТИВНОСТІ
-    # ==========================================
     def build_efficiency_page(self):
+        """Конструює сторінку інтерактивних графіків КРІ та аналізу категорій аварійності."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -171,11 +195,14 @@ class ArmManagerWindow(BaseArmWindow):
         return page
 
     def show_eff_table_context_menu(self, pos: QPoint):
+        """Генерує контекстне меню правого кліку для швидкого переходу між розділами системи."""
         row = self.eff_table.currentRow()
-        if row < 0: return
+        if row < 0: 
+            return
         
         id_item = self.eff_table.item(row, 0)
-        if not id_item: return
+        if not id_item: 
+            return
         req_id = id_item.text()
 
         menu = QMenu(self)
@@ -208,6 +235,7 @@ class ArmManagerWindow(BaseArmWindow):
                         break
 
     def refresh_efficiency(self):
+        """Оновлює статистичні дані КРІ, кругову діаграму розподілу та таблицю останніх подій."""
         start_date = self.date_start.date().toPyDate()
         end_date = self.date_end.date().toPyDate()
         
@@ -234,9 +262,11 @@ class ArmManagerWindow(BaseArmWindow):
         self.chart_view.page().runJavaScript(js_code)
         
         self.eff_table.setRowCount(0)
-        for row_data in data["table_data"]: self.add_table_row(self.eff_table, row_data)
+        for row_data in data["table_data"]: 
+            self.add_table_row(self.eff_table, row_data)
 
     def setup_chart_html(self):
+        """Інжектує JavaScript графік Chart.js всередину компонента QWebEngineView."""
         bg_color = "#1E1E2E" if self.is_dark_theme else "#F8F9FA"
         text_color = "#F8F8F2" if self.is_dark_theme else "#2C3E50"
 
@@ -288,10 +318,8 @@ class ArmManagerWindow(BaseArmWindow):
         """
         self.chart_view.setHtml(chart_html)
 
-    # ==========================================
-    # 2. КАРТА ІНФРАСТРУКТУРИ ТА СТАТИСТИКА
-    # ==========================================
     def build_map_page(self):
+        """Будує інтерфейс інтерактивної карти Leaflet для геомоніторингу інфраструктури."""
         page = QWidget()
         layout = QHBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -330,8 +358,6 @@ class ArmManagerWindow(BaseArmWindow):
 
         self.web_map = QWebEngineView()
         self.web_map.setStyleSheet("border-radius: 10px; border: 1px solid #44475A;")
-
-        # --- СИСТЕМА ПЕРЕХОПЛЕННЯ ЗБЕРЕЖЕННЯ В КЕШ ---
         self.web_map.titleChanged.connect(self.handle_map_title_cache)
 
         html_content = """
@@ -386,10 +412,9 @@ class ArmManagerWindow(BaseArmWindow):
                         .then(data => {
                             if(data.length > 0) {
                                 task.callback(data[0].lat, data[0].lon);
-                                // ПЕРЕДАЄМО ЗНАЙДЕНІ ДАНІ НАЗАД У PYTHON (ДЛЯ ADDRESS_CACHE.JSON)
                                 document.title = "CACHE|" + task.search_addr.toLowerCase() + "|" + data[0].lat + "|" + data[0].lon;
                             } else {
-                                document.title = "MAP_READY"; // пустий сигнал
+                                document.title = "MAP_READY";
                             }
                             setTimeout(processQueue, 1500); 
                         })
@@ -431,7 +456,6 @@ class ArmManagerWindow(BaseArmWindow):
         </body>
         </html>
         """
-        # localhost ПОВЕРНУТО! CORS-помилки більше не буде!
         self.web_map.setHtml(html_content, QUrl("http://localhost"))
         self.web_map.loadFinished.connect(lambda ok: self.refresh_map() if ok else None)
 
@@ -440,7 +464,7 @@ class ArmManagerWindow(BaseArmWindow):
         return page
 
     def handle_map_title_cache(self, title):
-        # Якщо JS знайшов нову адресу в інтернеті, він повідомить Python через заголовок сторінки!
+        """Слухає зміни заголовків карти для динамічного локального збереження знайдених геокоординат."""
         if title.startswith("CACHE|"):
             parts = title.split("|")
             if len(parts) == 4:
@@ -455,6 +479,7 @@ class ArmManagerWindow(BaseArmWindow):
                     save_address_cache(cache)
 
     def show_map_statistics(self):
+        """Відкриває деревоподібне ієрархічне вікно з розподілом поточних аварій містом."""
         stats = manager_service.get_map_statistics()
         dialog = QDialog(self)
         dialog.setWindowTitle("Детальна статистика аварій")
@@ -471,7 +496,8 @@ class ArmManagerWindow(BaseArmWindow):
         grouped = {}
         for s in stats:
             cat = s["category"]
-            if cat not in grouped: grouped[cat] = []
+            if cat not in grouped: 
+                grouped[cat] = []
             grouped[cat].append(s)
             
         for cat, items in grouped.items():
@@ -495,13 +521,15 @@ class ArmManagerWindow(BaseArmWindow):
         dialog.exec()
 
     def refresh_map(self):
+        """Оновлює маркери та списки на інтерактивній карті."""
         self.map_requests_list.setRowCount(0)
         self.web_map.page().runJavaScript("if (typeof clearMarkers === 'function') clearMarkers();")
         
         data = worker_service.get_active_requests(show_all=False)
-        address_cache = load_address_cache() # ТЕПЕР КАРТА ЧИТАЄ НОВИЙ КЕШ ДЛЯ БУДИНКІВ
+        address_cache = load_address_cache()
         
-        def escape_js(t): return str(t or "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"').replace("\n", " ")
+        def escape_js(t): 
+            return str(t or "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"').replace("\n", " ")
 
         for row in data:
             req_time = row["request_date"].strftime("%H:%M %d.%m") if row.get("request_date") else ""
@@ -524,15 +552,15 @@ class ArmManagerWindow(BaseArmWindow):
             self.web_map.page().runJavaScript(js)
 
     def on_map_row_selected(self):
+        """Фокусує і наближає карту до об'єкта при виборі його в таблиці."""
         row = self.map_requests_list.currentRow()
         if row >= 0:
             item = self.map_requests_list.item(row, 0)
-            if item: self.web_map.page().runJavaScript(f"if(typeof setFocusTarget==='function') setFocusTarget('{item.text()}');")
+            if item: 
+                self.web_map.page().runJavaScript(f"if(typeof setFocusTarget==='function') setFocusTarget('{item.text()}');")
 
-    # ==========================================
-    # 3. КОНТРОЛЬ БЮДЖЕТУ ТА ЗВІТИ
-    # ==========================================
     def build_budget_page(self):
+        """Будує інтерфейс моніторингу видатків, фінансових лімітів та генерації офіційних звітів."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -599,6 +627,7 @@ class ArmManagerWindow(BaseArmWindow):
         
         btn_set_budget = self.create_action_button("Зберегти ліміт")
         btn_set_budget.clicked.connect(self.save_new_budget)
+        self.input_budget.returnPressed.connect(self.save_new_budget)
         
         set_lay.addWidget(QLabel("Встановити на:"))
         set_lay.addWidget(self.cb_set_month)
@@ -639,6 +668,7 @@ class ArmManagerWindow(BaseArmWindow):
         return page
 
     def save_new_budget(self):
+        """Зберігає оновлену граничну суму бюджету для підприємства у БД."""
         val = self.input_budget.text().strip()
         month_idx = self.cb_set_month.currentIndex() + 1
         year = self.spin_set_year.value()
@@ -648,15 +678,20 @@ class ArmManagerWindow(BaseArmWindow):
             self.input_budget.clear()
             self.refresh_budget()
             QMessageBox.information(self, "Успіх", f"Бюджет успішно оновлено на {MONTHS_LIST[month_idx-1]} {year}!")
-        except ValueError: QMessageBox.critical(self, "Помилка", "Введіть коректне число!")
+        except ValueError: 
+            QMessageBox.critical(self, "Помилка", "Введіть коректне число!")
 
     def refresh_budget(self):
+        """Завантажує деталізовані дані фінансового звіту з БД за обраний період."""
         idx = self.cb_view_month.currentIndex()
         year = self.spin_view_year.value()
         
-        if idx == 0: month = -1
-        elif idx == 1: month = 0
-        else: month = idx - 1
+        if idx == 0: 
+            month = -1
+        elif idx == 1: 
+            month = 0
+        else: 
+            month = idx - 1
         
         self.current_budget_data = manager_service.get_budget_data(year, month)
         data = self.current_budget_data
@@ -667,31 +702,43 @@ class ArmManagerWindow(BaseArmWindow):
             self.val_rem.setText(f"{data['remaining']:,.0f} ₴".replace(',', ' '))
             
         self.budget_table.setRowCount(0)
-        for row_data in data["table_data"]: self.add_table_row(self.budget_table, row_data)
+        for row_data in data["table_data"]: 
+            self.add_table_row(self.budget_table, row_data)
 
     def export_budget_to_word(self):
-        if not hasattr(self, 'current_budget_data'): return
+        """Формує офіційний документ звітності у форматі Microsoft Word (.docx)."""
+        if not hasattr(self, 'current_budget_data'): 
+            return
         suffix = self.current_budget_data.get('file_suffix', 'звіт')
         default_filename = f"Звіт_Витрат_за_{suffix}.docx"
         path, _ = QFileDialog.getSaveFileName(self, "Зберегти звіт у Word", default_filename, "Word Documents (*.docx)")
-        if not path: return
+        if not path: 
+            return
         try:
             manager_service.generate_word_report(path, self.current_budget_data)
             QMessageBox.information(self, "Успіх", f"Звіт Word успішно сформовано!\n{path}")
-        except Exception as e: QMessageBox.critical(self, "Помилка", f"Помилка: {str(e)}")
+        except Exception as e: 
+            QMessageBox.critical(self, "Помилка", f"Помилка: {str(e)}")
 
     def export_budget_to_excel(self):
-        if not hasattr(self, 'current_budget_data'): return
+        """Експортує фінансові таблиці ТМЦ у зведені таблиці Microsoft Excel (.xlsx)."""
+        if not hasattr(self, 'current_budget_data'): 
+            return
         suffix = self.current_budget_data.get('file_suffix', 'звіт')
         default_filename = f"Звіт_Витрат_за_{suffix}.xlsx"
         path, _ = QFileDialog.getSaveFileName(self, "Зберегти звіт в Excel", default_filename, "Excel Files (*.xlsx)")
-        if not path: return
+        if not path: 
+            return
         try:
             manager_service.generate_excel_report(path, self.current_budget_data)
             QMessageBox.information(self, "Успіх", f"Звіт Excel успішно сформовано!\n{path}")
-        except Exception as e: QMessageBox.critical(self, "Помилка", f"Помилка: {str(e)}")
+        except Exception as e: 
+            QMessageBox.critical(self, "Помилка", f"Помилка: {str(e)}")
+
+
 
     def apply_theme(self):
+        """Коригує графічний стиль та тему відображення вбудованих веб-графіків."""
         super().apply_theme()
         
         if hasattr(self, 'chart_view'):
@@ -700,7 +747,17 @@ class ArmManagerWindow(BaseArmWindow):
             is_dark_str = 'true' if self.is_dark_theme else 'false'
             self.chart_view.page().runJavaScript(f"if(typeof changeTheme === 'function') changeTheme({is_dark_str});")
 
+        if hasattr(self, 'sla_chart_view'):
+            border_col = "#44475A" if self.is_dark_theme else "#DEE2E6"
+            self.sla_chart_view.setStyleSheet(
+                f"background: transparent; border-radius: 10px; border: 1px solid {border_col};")
+
+            is_dark_str = 'true' if self.is_dark_theme else 'false'
+            self.sla_chart_view.page().runJavaScript(
+                f"if(typeof changeTheme === 'function') changeTheme({is_dark_str});")
+
     def create_stat_card(self, title_text, value_text, color):
+        """Фабричний метод створення інформаційних карток для дашборду."""
         card = QFrame()
         card.setObjectName("stat_card")
         card.setProperty("accent_color", color)
@@ -716,3 +773,176 @@ class ArmManagerWindow(BaseArmWindow):
         card_lay.addWidget(lbl_title)
         card_lay.addWidget(lbl_val)
         return card
+    
+    def build_sla_page(self):
+        """Створює сторінку аналізу швидкості роботи з горизонтальним графіком та таблицею."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        title = QLabel("Аналіз швидкості виконання заявок")
+        title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        layout.addWidget(title)
+
+        border_color = "#44475A" if self.is_dark_theme else "#DEE2E6"
+
+        chart_and_table_layout = QHBoxLayout()
+
+        self.sla_chart_view = QWebEngineView()
+        self.sla_chart_view.setMinimumWidth(450)
+        self.sla_chart_view.setStyleSheet(
+            f"background: transparent; border-radius: 10px; border: 1px solid {border_color};")
+
+        self.setup_sla_chart_html()
+        chart_and_table_layout.addWidget(self.sla_chart_view, stretch=4)
+
+        table_container = QWidget()
+        table_lay = QVBoxLayout(table_container)
+        table_lay.setContentsMargins(0, 0, 0, 0)
+        table_lay.setSpacing(5)
+
+        lbl_tbl = QLabel("Середній час перебування заявок у стані:")
+        lbl_tbl.setStyleSheet("font-size: 15px; font-weight: bold;")
+        lbl_descr = QLabel("Показує середню тривалість обробки на кожному кроці життєвого циклу.")
+        lbl_descr.setStyleSheet("color: #A6ADC8; font-size: 13px; margin-bottom: 5px;")
+
+        self.sla_table = QTableWidget()
+        self.sla_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.sla_table.setColumnCount(3)
+        self.sla_table.setHorizontalHeaderLabels([
+            "Назва статусу системи", "Середній час перебування", "Кількість переходів"
+        ])
+        self.sla_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+
+        table_lay.addWidget(lbl_tbl)
+        table_lay.addWidget(lbl_descr)
+        table_lay.addWidget(self.sla_table)
+
+        chart_and_table_layout.addWidget(table_container, stretch=5)
+        layout.addLayout(chart_and_table_layout)
+
+        btn_refresh_sla = self.create_action_button("🔄 Оновити аналітику", primary=True)
+        btn_refresh_sla.clicked.connect(self.refresh_sla_analytics)
+        layout.addWidget(btn_refresh_sla, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self.sla_chart_view.loadFinished.connect(lambda ok: self.refresh_sla_analytics() if ok else None)
+        return page
+
+    def web_content_sla_widget(self):
+        return QWidget()
+    def setup_sla_chart_html(self):
+        """Генерує HTML сторінку з горизонтальним стовпчиковим графіком та підтримкою зміни тем."""
+        bg_color = "#1E1E2E" if self.is_dark_theme else "#F8F9FA"
+        text_color = "#F8F8F2" if self.is_dark_theme else "#2C3E50"
+
+        chart_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <style> 
+                body {{ margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: {bg_color}; transition: background-color 0.3s; }} 
+            </style>
+        </head>
+        <body id="slaChartBody">
+            <div style="width: 95%; height: 90%;">
+                <canvas id="slaChart"></canvas>
+            </div>
+            <script>
+                const ctx = document.getElementById('slaChart');
+                var slaChart = new Chart(ctx, {{
+                    type: 'bar',
+                    data: {{
+                        labels: [],
+                        datasets: [{{
+                            label: 'Середня тривалість (год)',
+                            data: [],
+                            backgroundColor: '#8B5CF6',
+                            borderRadius: 5,
+                            borderWidth: 0
+                        }}]
+                    }},
+                    options: {{
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {{
+                            legend: {{ display: false }},
+                            tooltip: {{ callbacks: {{ label: function(context) {{ return ' ' + context.raw + ' год.'; }} }} }}
+                        }},
+                        scales: {{
+                            x: {{ grid: {{ color: 'rgba(255,255,255,0.05)' }}, ticks: {{ color: '{text_color}' }} }},
+                            y: {{ grid: {{ display: false }}, ticks: {{ color: '{text_color}', font: {{ size: 13, weight: 'bold' }} }} }}
+                        }}
+                    }}
+                }});
+
+                function updateSlaChart(labels, dataValues) {{
+                    slaChart.data.labels = labels;
+                    slaChart.data.datasets[0].data = dataValues;
+                    slaChart.update();
+                }}
+
+                function changeTheme(isDark) {{
+                    document.getElementById('slaChartBody').style.backgroundColor = isDark ? '#1E1E2E' : '#F8F9FA';
+
+                    const newTextColor = isDark ? '#F8F8F2' : '#2C3E50';
+                    const newGridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+
+                    slaChart.options.scales.x.ticks.color = newTextColor;
+                    slaChart.options.scales.y.ticks.color = newTextColor;
+                    slaChart.options.scales.x.grid.color = newGridColor;
+
+                    slaChart.update();
+                }}
+            </script>
+        </body>
+        </html>
+        """
+        self.sla_chart_view.setHtml(chart_html)
+
+    def refresh_sla_analytics(self):
+        """Зчитує дані, заповнює таблицю та передає масиви на графік."""
+        if not hasattr(self, 'sla_table') or not hasattr(self, 'sla_chart_view'):
+            return
+
+        self.sla_table.setRowCount(0)
+        sla_data = manager_service.get_status_duration_statistics()
+
+        chart_labels = []
+        chart_values = []
+
+        for row_idx, row in enumerate(sla_data):
+            self.sla_table.insertRow(row_idx)
+
+            hours_float = round(row["avg_seconds"] / 3600, 2)
+            chart_labels.append(row["status_name"])
+            chart_values.append(hours_float)
+
+            item_status = QTableWidgetItem(row["status_name"])
+            item_time = QTableWidgetItem(row["time_display"])
+            item_count = QTableWidgetItem(f"{row['transitions_count']} разів")
+
+            if row["avg_seconds"] > 86400:
+                item_time.setForeground(QColor("#FF5555"))
+            elif row["avg_seconds"] > 10800:
+                item_time.setForeground(QColor("#FFB86C"))
+
+            self.sla_table.setItem(row_idx, 0, item_status)
+            self.sla_table.setItem(row_idx, 1, item_time)
+            self.sla_table.setItem(row_idx, 2, item_count)
+
+        labels_json = json.dumps(chart_labels, ensure_ascii=False)
+        values_json = json.dumps(chart_values)
+        js_code = f"if(typeof updateSlaChart === 'function') updateSlaChart({labels_json}, {values_json});"
+        self.sla_chart_view.page().runJavaScript(js_code)
+
+        self.apply_theme()
+
+    def on_menu_click(self, index, btn):
+        """Перехоплює клік по боковому меню АРМ Керівника."""
+        super().on_menu_click(index, btn)
+
+        if index == 3:
+            self.refresh_sla_analytics()

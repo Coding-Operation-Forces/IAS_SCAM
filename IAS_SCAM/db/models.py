@@ -3,18 +3,13 @@ from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, T
 from sqlalchemy.orm import relationship
 from db.database import Base
 
-
-# ==========================================
-# РІВЕНЬ 0: НЕЗАЛЕЖНІ ДОВІДНИКИ (Сторона «1»)
-# ==========================================
-
 class Category(Base):
     __tablename__ = "category"
 
     id_category = Column(Integer, primary_key=True, autoincrement=True)
     category_name = Column(String(100), nullable=False)
 
-    # 1 до * (Категорія має багато типів аварій та бригад)
+    # Зв'язки типу "один-до-багатьох" з типами інцидентів та бригадами
     issue_types = relationship("IssueType", back_populates="category")
     crews = relationship("Crew", back_populates="category")
 
@@ -25,7 +20,7 @@ class Roles(Base):
     id_role = Column(Integer, primary_key=True, autoincrement=True)
     role_name = Column(String(45), nullable=False)
 
-    # 1 до * (Роль мають багато користувачів)
+    # Зв'язок з користувачами системи
     users = relationship("Users", back_populates="role")
 
 
@@ -35,7 +30,7 @@ class Status(Base):
     id_status = Column(Integer, primary_key=True, autoincrement=True)
     status_name = Column(String(45), nullable=False)
 
-    # 1 до * (Статус мають багато заявок та записів в історії)
+    # Зв'язки з поточними заявками та журналами зміни статусів
     requests = relationship("Requests", back_populates="status")
     histories = relationship("StatusHistory", back_populates="status")
 
@@ -46,7 +41,7 @@ class CriticalityLevels(Base):
     id_criticality = Column(Integer, primary_key=True, autoincrement=True)
     level_name = Column(String(45), nullable=False)
 
-    # 1 до * (Рівень критичності мають багато заявок)
+    # Зв'язок із таблицею заявок для визначення пріоритету виконання
     requests = relationship("Requests", back_populates="criticality")
 
 
@@ -56,7 +51,7 @@ class CrewStatus(Base):
     id_crew_status = Column(Integer, primary_key=True, autoincrement=True)
     status_name = Column(String(45), nullable=False)
 
-    # 1 до * (Статус можуть мати багато бригад)
+    # Зв'язок із станом робочих бригад
     crews = relationship("Crew", back_populates="status")
 
 
@@ -68,7 +63,7 @@ class Materials(Base):
     unit = Column(String(20))
     price = Column(Numeric(10, 2))
 
-    # 1 до * (Матеріал фігурує у багатьох деталізаціях робіт)
+    # Зв'язок із деталізацією витрачених матеріалів у заявках
     request_details = relationship("RequestDetails", back_populates="material")
 
 
@@ -89,13 +84,9 @@ class Applicants(Base):
     floor = Column(Integer)
     apartment = Column(String(10))
 
-    # 1 до * (Заявник може подати багато заявок)
+    # Зв'язок із поданими заявками від клієнта
     requests = relationship("Requests", back_populates="applicant")
 
-
-# ==========================================
-# РІВЕНЬ 1: ЗАЛЕЖНІ ДОВІДНИКИ (Проміжні таблиці)
-# ==========================================
 
 class IssueType(Base):
     __tablename__ = "issue_type"
@@ -104,9 +95,7 @@ class IssueType(Base):
     category_id = Column(Integer, ForeignKey("category.id_category"), nullable=False)
     type_name = Column(String(150), nullable=False)
 
-    # Зв'язки зворотні
     category = relationship("Category", back_populates="issue_types")
-    # 1 до * (Тип аварії міститься у багатьох заявках)
     requests = relationship("Requests", back_populates="issue_type")
 
 
@@ -120,7 +109,6 @@ class Users(Base):
     password_hash = Column(String(255), nullable=False)
     is_active = Column(Integer, default=1, nullable=False)
 
-    # Зв'язки зворотні
     role = relationship("Roles", back_populates="users")
     requests = relationship("Requests", back_populates="user")
     audit_logs = relationship("AuditLog", back_populates="user")
@@ -135,16 +123,10 @@ class Crew(Base):
     status_id = Column(Integer, ForeignKey("crew_status.id_crew_status"), nullable=False)
     crew_number = Column(String(45), nullable=False)
 
-    # Зв'язки зворотні
     category = relationship("Category", back_populates="crews")
     status = relationship("CrewStatus", back_populates="crews")
-    # 1 до * (Бригада може виконувати багато заявок)
     requests = relationship("Requests", back_populates="crew")
 
-
-# ==========================================
-# РІВЕНЬ 2: ГОЛОВНА ТАБЛИЦЯ ЗАЯВОК
-# ==========================================
 
 class Requests(Base):
     __tablename__ = "requests"
@@ -168,7 +150,6 @@ class Requests(Base):
     apartment = Column(String(10))
     completion_date = Column(DateTime, nullable=True)
 
-    # Багато до одного (Зворотні зв'язки до батьківських таблиць)
     applicant = relationship("Applicants", back_populates="requests")
     issue_type = relationship("IssueType", back_populates="requests")
     status = relationship("Status", back_populates="requests")
@@ -176,14 +157,10 @@ class Requests(Base):
     user = relationship("Users", back_populates="requests")
     crew = relationship("Crew", back_populates="requests")
 
-    # 1 до * (Сильні композиційні зв'язки: каскадне видалення)
+    # Конфігурація каскадного видалення пов'язаних сутностей історії та специфікацій
     details = relationship("RequestDetails", back_populates="request", cascade="all, delete-orphan")
     history = relationship("StatusHistory", back_populates="request", cascade="all, delete-orphan")
 
-
-# ==========================================
-# РІВЕНЬ 3: ПОДРОБИЦІ, ІСТОРІЯ ТА ЛОГИ
-# ==========================================
 
 class RequestDetails(Base):
     __tablename__ = "request_details"
@@ -194,7 +171,6 @@ class RequestDetails(Base):
     quantity = Column(Numeric(10, 2))
     total_cost = Column(Numeric(10, 2))
 
-    # Зв'язки зворотні
     request = relationship("Requests", back_populates="details")
     material = relationship("Materials", back_populates="request_details")
 
@@ -208,7 +184,6 @@ class StatusHistory(Base):
     user_id = Column(Integer, ForeignKey("users.id_user"))
     change_date = Column(DateTime, default=datetime.datetime.utcnow)
 
-    # Зв'язки зворотні
     request = relationship("Requests", back_populates="history")
     status = relationship("Status", back_populates="histories")
     user = relationship("Users", back_populates="histories")
@@ -226,5 +201,4 @@ class AuditLog(Base):
     old_value = Column(String(255))
     new_value = Column(String(255))
 
-    # Зв'язок зворотній
     user = relationship("Users", back_populates="audit_logs")

@@ -1,12 +1,11 @@
-# services/worker_service.py
 import re
 from datetime import datetime
 from db.database import SessionLocal
 from db.models import Requests, Applicants, RequestDetails, IssueType, Category, Status, Materials, StatusHistory, CriticalityLevels
 import services.audit_service as audit_service
 
-
 def get_active_requests(show_all=False):
+    """Вибірка списку заявок зі зваженим багаторівневим сортуванням за станом та критичністю."""
     with SessionLocal() as db:
         try:
             query = db.query(Requests)
@@ -57,8 +56,8 @@ def get_active_requests(show_all=False):
             print(f"Помилка завантаження заявок: {e}")
             return []
 
-
 def update_requests_data(updates, current_user_id=None):
+    """Групове оновлення параметрів стану та призначення робочих бригад на інциденти."""
     if not updates: return True, "Немає змін."
     user_id_log = current_user_id if current_user_id else 1
     with SessionLocal() as db:
@@ -66,7 +65,6 @@ def update_requests_data(updates, current_user_id=None):
             for u in updates:
                 req = db.query(Requests).filter(Requests.id_request == u['req_id']).first()
                 if req:
-                    # 1. ОБРОБКА ЗМІНИ СТАТУСУ (Логуємо тільки якщо статус РЕАЛЬНО змінився)
                     if 'status_id' in u and req.status_id != u['status_id']:
                         old_status_id = str(req.status_id)
                         req.status_id = u['status_id']
@@ -83,23 +81,19 @@ def update_requests_data(updates, current_user_id=None):
                         )
                         db.add(history_entry)
 
-                        # Запис в аудит тільки за наявності змін
                         audit_service.log_action(
                             user_id=user_id_log, event_type="UPDATE",
                             table_name="requests.status_id", record_id=req.id_request,
                             old_value=old_status_id, new_value=str(u['status_id'])
                         )
 
-                    # 2. ОБРОБКА ЗМІНИ БРИГАДИ (Логуємо тільки якщо обрано ІНШУ бригаду)
                     if 'crew_id' in u:
                         new_crew_val = u['crew_id'] if u['crew_id'] != 0 else None
 
-                        # Порівнюємо поточну бригаду з новою зі списку
                         if req.crew_id != new_crew_val:
                             old_crew_id = str(req.crew_id or "0")
                             req.crew_id = new_crew_val
 
-                            # Запис в аудит тільки за наявності реальних змін
                             audit_service.log_action(
                                 user_id=user_id_log, event_type="UPDATE",
                                 table_name="requests.crew_id", record_id=req.id_request,
@@ -111,7 +105,6 @@ def update_requests_data(updates, current_user_id=None):
         except Exception as e:
             db.rollback()
             return False, f"Помилка бази даних: {str(e)}"
-
 
 def get_applicant_by_account(account_number):
     with SessionLocal() as db:
@@ -133,8 +126,8 @@ def get_applicant_by_account(account_number):
         except Exception:
             return {"found": False}
 
-
 def register_new_request(app_data, req_data):
+    """Реєстрація нової заявки клієнта, включно з автоматичним парсингом адреси регулярними виразами."""
     with SessionLocal() as db:
         try:
             floor_val = int(app_data["floor"]) if app_data["floor"].isdigit() else None
@@ -186,7 +179,6 @@ def register_new_request(app_data, req_data):
             issue_obj = db.query(IssueType).filter(IssueType.id_issue_type == req_data["issue_type_id"]).first()
             crit_obj = db.query(CriticalityLevels).filter(CriticalityLevels.id_criticality == req_data["criticality_id"]).first()
 
-            # ПОКРОКОВИЙ АТОМАРНИЙ СПИСОК ПОЛІВ ЗАЯВКИ
             fields_to_log = [
                 ("account_number", "Не існувало", app_data['account']),
                 ("applicant_name", "Не існувало", f"{app_data['lname']} {app_data['fname']}"),
@@ -200,12 +192,11 @@ def register_new_request(app_data, req_data):
                 ("status", "Не існувало", default_status.status_name)
             ]
 
-            # Записуємо окремий самостійний лог для кожної змінної поля через цикл
             for field_name, old_f, new_f in fields_to_log:
                 audit_service.log_action(
                     user_id=user_id_log,
                     event_type="INSERT",
-                    table_name=f"requests.{field_name}",  # Чітко пишемо назву колонки таблиці через крапку
+                    table_name=f"requests.{field_name}",
                     record_id=new_request.id_request,
                     old_value=old_f,
                     new_value=str(new_f)
@@ -216,7 +207,6 @@ def register_new_request(app_data, req_data):
         except Exception as e:
             db.rollback()
             return False, f"Помилка: {str(e)}"
-
 
 def get_used_materials_report():
     with SessionLocal() as db:
@@ -230,11 +220,10 @@ def get_used_materials_report():
         except Exception:
             return []
 
-
 def write_off_material(request_id, material_id, quantity, user_id=1):
+    """Списання матеріалів під виконання робіт із декомпозицією полів у журнал системного аудиту."""
     with SessionLocal() as db:
         try:
-            # Перевіряємо наявність заявки та матеріалу в базі
             if not db.query(Requests).filter(Requests.id_request == request_id).first():
                 return False, "Заявку не знайдено!"
 
@@ -244,7 +233,6 @@ def write_off_material(request_id, material_id, quantity, user_id=1):
 
             qty_float = float(quantity)
 
-            # Створюємо запис про використання матеріалів (деталізацію робіт)
             usage = RequestDetails(
                 request_id=request_id,
                 material_id=material_id,
@@ -252,29 +240,23 @@ def write_off_material(request_id, material_id, quantity, user_id=1):
                 total_cost=float(material.price) * qty_float
             )
             db.add(usage)
-            db.flush()  # Отримуємо автоматично згенерований id_detail
+            db.flush()
 
-            # =====================================================================
-            # 🚀 ВИПРАВЛЕНО: АТОМАРНЕ ЛОГУВАННЯ КОЖНОГО ПОЛЯ ОКРЕМУ СТРІЧКОЮ
-            # =====================================================================
-            # Формуємо список параметрів списання для роздільного запису в аудит
             fields_to_log = [
                 ("request_id", "Не існувало", request_id),
                 ("material_id", "Не існувало", material_id),
                 ("quantity", "Не існувало", f"{qty_float} {material.unit or ''}".strip())
             ]
 
-            # Записуємо окремий самостійний рядок логу для кожного поля через цикл
             for field_name, old_f, new_f in fields_to_log:
                 audit_service.log_action(
                     user_id=user_id,
                     event_type="WRITE_OFF",
-                    table_name=f"request_details.{field_name}",  # Вказуємо конкретне поле через крапку
+                    table_name=f"request_details.{field_name}",
                     record_id=usage.id_detail,
                     old_value=old_f,
                     new_value=str(new_f)
                 )
-            # =====================================================================
 
             db.commit()
             return True, "Матеріал успішно додано!"
@@ -282,19 +264,15 @@ def write_off_material(request_id, material_id, quantity, user_id=1):
             db.rollback()
             return False, f"Помилка: {str(e)}"
 
-
 def get_issue_mapping():
+    """Складання словника відповідності категорій та специфічних типів аварій."""
     with SessionLocal() as db:
         try:
-            # Робимо вибірку відштовхуючись від Категорій
             categories = db.query(Category).outerjoin(IssueType).all()
             mapping = {}
             
             for c in categories:
-                # Додаємо категорію до словника у будь-якому випадку
                 mapping[c.category_name] = []
-                
-                # Якщо у категорії є типи аварій, додаємо їх у список
                 for t in c.issue_types:
                     mapping[c.category_name].append((t.id_issue_type, t.type_name))
                     
