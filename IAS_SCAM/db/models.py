@@ -9,7 +9,6 @@ class Category(Base):
     id_category = Column(Integer, primary_key=True, autoincrement=True)
     category_name = Column(String(100), nullable=False)
 
-    # Зв'язки типу "один-до-багатьох" з типами інцидентів та бригадами
     issue_types = relationship("IssueType", back_populates="category")
     crews = relationship("Crew", back_populates="category")
 
@@ -20,7 +19,6 @@ class Roles(Base):
     id_role = Column(Integer, primary_key=True, autoincrement=True)
     role_name = Column(String(45), nullable=False)
 
-    # Зв'язок з користувачами системи
     users = relationship("Users", back_populates="role")
 
 
@@ -30,7 +28,6 @@ class Status(Base):
     id_status = Column(Integer, primary_key=True, autoincrement=True)
     status_name = Column(String(45), nullable=False)
 
-    # Зв'язки з поточними заявками та журналами зміни статусів
     requests = relationship("Requests", back_populates="status")
     histories = relationship("StatusHistory", back_populates="status")
 
@@ -41,7 +38,6 @@ class CriticalityLevels(Base):
     id_criticality = Column(Integer, primary_key=True, autoincrement=True)
     level_name = Column(String(45), nullable=False)
 
-    # Зв'язок із таблицею заявок для визначення пріоритету виконання
     requests = relationship("Requests", back_populates="criticality")
 
 
@@ -51,7 +47,6 @@ class CrewStatus(Base):
     id_crew_status = Column(Integer, primary_key=True, autoincrement=True)
     status_name = Column(String(45), nullable=False)
 
-    # Зв'язок із станом робочих бригад
     crews = relationship("Crew", back_populates="status")
 
 
@@ -63,7 +58,6 @@ class Materials(Base):
     unit = Column(String(20))
     price = Column(Numeric(10, 2))
 
-    # Зв'язок із деталізацією витрачених матеріалів у заявках
     request_details = relationship("RequestDetails", back_populates="material")
 
 
@@ -84,7 +78,6 @@ class Applicants(Base):
     floor = Column(Integer)
     apartment = Column(String(10))
 
-    # Зв'язок із поданими заявками від клієнта
     requests = relationship("Requests", back_populates="applicant")
 
 
@@ -108,6 +101,8 @@ class Users(Base):
     email = Column(String(100))
     password_hash = Column(String(255), nullable=False)
     is_active = Column(Integer, default=1, nullable=False)
+    failed_attempts = Column(Integer, default=0, nullable=False)
+    lock_until = Column(DateTime, nullable=True)
 
     role = relationship("Roles", back_populates="users")
     requests = relationship("Requests", back_populates="user")
@@ -156,8 +151,7 @@ class Requests(Base):
     criticality = relationship("CriticalityLevels", back_populates="requests")
     user = relationship("Users", back_populates="requests")
     crew = relationship("Crew", back_populates="requests")
-
-    # Конфігурація каскадного видалення пов'язаних сутностей історії та специфікацій
+    
     details = relationship("RequestDetails", back_populates="request", cascade="all, delete-orphan")
     history = relationship("StatusHistory", back_populates="request", cascade="all, delete-orphan")
 
