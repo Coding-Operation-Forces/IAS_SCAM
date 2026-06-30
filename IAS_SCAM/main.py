@@ -22,6 +22,7 @@ except ImportError:
 
 from ui.login_window import LoginWindow
 
+
 class NETRESOURCE(ctypes.Structure):
     """Структура Windows API для ідентифікації мережевого ресурсу."""
     _fields_ = [
@@ -34,6 +35,7 @@ class NETRESOURCE(ctypes.Structure):
         ('lpComment', wintypes.LPWSTR),
         ('lpProvider', wintypes.LPWSTR)
     ]
+
 
 def auto_connect_shared_folder():
     """Автоматичне монтування віддаленого каталогу за допомогою функції WNetAddConnection2W."""
@@ -62,6 +64,7 @@ def auto_connect_shared_folder():
     else:
         print(f"[NET] Попередження: Код помилки Windows API: {result}")
 
+
 def qt_exception_hook(exctype, value, tb):
     """Перехоплювач необроблених винятків для забезпечення коректного логування збоїв Event Loop."""
     print("\n" + "=" * 80)
@@ -71,6 +74,7 @@ def qt_exception_hook(exctype, value, tb):
     print("=" * 80 + "\n")
     sys.__excepthook__(exctype, value, tb)
     sys.exit(1)
+
 
 class DarkSplashScreen(QSplashScreen):
     """Графічний екран заставки (Splash Screen) із вбудованим індикатором прогресу ініціалізації."""
@@ -113,6 +117,7 @@ class DarkSplashScreen(QSplashScreen):
         self.showMessage(f"  {message}", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft, QColor("#F8F8F2"))
         QApplication.processEvents()
 
+
 def main():
     sys.excepthook = qt_exception_hook
 
@@ -126,13 +131,19 @@ def main():
     splash = DarkSplashScreen(icon_path, APP_VERSION)
     splash.show()
 
-    # Послідовне виконання реальних процедур завантаження компонентів системи
     splash.update_progress(15, "Ініціалізація підсистем середовища...")
-    
-    splash.update_progress(45, "Авторизація доступу до файлового сервера...")
+
+    splash.update_progress(35, "Авторизація доступу до файлового сервера...")
     auto_connect_shared_folder()
 
-    splash.update_progress(75, "Перевірка доступності сервера PostgreSQL...")
+    splash.update_progress(60, "Валідація структури та первинних даних БД...")
+    try:
+        from db.init_db import create_database_tables
+        create_database_tables()
+    except Exception as db_err:
+        print(f"[INIT] Попередження під час автоініціалізації СУБД: {db_err}")
+
+    splash.update_progress(80, "Перевірка доступності сервера PostgreSQL...")
     try:
         from services.monitoring_service import check_db_status
         if check_db_status():
@@ -142,7 +153,7 @@ def main():
     except Exception as e:
         print(f"[INIT] Помилка під час верифікації зв'язку з БД: {e}")
 
-    splash.update_progress(90, "Кешування статичних довідників та мапінгів...")
+    splash.update_progress(95, "Кешування статичних довідників та мапінгів...")
     try:
         from services.worker_service import get_issue_mapping
         get_issue_mapping()
@@ -150,12 +161,13 @@ def main():
         print(f"[INIT] Помилка попереднього завантаження довідників: {e}")
 
     splash.update_progress(100, "Підготовка інтерфейсу користувача...")
-    
+
     main_window = LoginWindow()
     main_window.show()
     splash.finish(main_window)
 
     sys.exit(app.exec())
+
 
 if __name__ == "__main__":
     main()
