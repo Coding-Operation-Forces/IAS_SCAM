@@ -1,11 +1,13 @@
+# init_db.py
 import bcrypt
 from db.database import engine, Base, SessionLocal
 from db.models import Roles, Users
+import db.models
 
 
 def create_database_tables():
     print("[INIT] Перевірка та створення таблиць у PostgreSQL...")
-    # Створює лише ті таблиці, яких ще немає в СУБД
+    # Тепер create_all чітко знає про існування 'roles', 'users', 'requests' тощо
     Base.metadata.create_all(bind=engine)
 
     seed_required_data()
@@ -28,13 +30,12 @@ def seed_required_data():
             if db.query(Users).count() == 0:
                 print("[INIT] Користувачів не знайдено. Створюю першого Адміністратора...")
 
-                # дефолтний пароль: admin123
                 default_password = "admin123"
                 hashed_password = bcrypt.hashpw(default_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
                 admin_user = Users(
                     role_id=1,
-                    full_name="Адміністратор",
+                    full_name="Шевчук Кирил Костянтинович",
                     email="admin@scam.ua",
                     password_hash=hashed_password,
                     is_active=1,
@@ -44,11 +45,9 @@ def seed_required_data():
                 db.commit()
                 print("=" * 60)
                 print("🚀 ПЕРШОГО АДМІНІСТРАТОРА УСПІШНО СТВОРЕНО!")
-                print("📧 Логін: admin@skam.ua")
+                print("📧 Логін: admin@scam.ua")
                 print("🔑 Пароль: admin123")
                 print("=" * 60)
-            else:
-                pass
 
         except Exception as e:
             db.rollback()

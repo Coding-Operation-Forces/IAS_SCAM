@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import QApplication, QSplashScreen, QProgressBar
 from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont
 from config import APP_VERSION
 
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env"))
 
 os.environ["QT_API"] = "pyqt6"
 os.environ["QT_FORCE_STDERR_LOGGING"] = "1"
