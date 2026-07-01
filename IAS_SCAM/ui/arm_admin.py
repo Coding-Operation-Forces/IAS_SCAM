@@ -19,7 +19,7 @@ import services.audit_service as audit_service
 
 class DirectoryDialog(QDialog):
     """Діалогове вікно для створення та редагування записів у системних довідниках."""
-    
+
     def __init__(self, parent=None, tab_index=0, current_data=None):
         super().__init__(parent)
         self.tab_index = tab_index
@@ -35,15 +35,15 @@ class DirectoryDialog(QDialog):
         if tab_index in (0, 4, 5, 6, 7):
             self.inputs["name"] = QLineEdit()
             self.form.addRow("Назва:", self.inputs["name"])
-            if current_data: 
+            if current_data:
                 self.inputs["name"].setText(current_data.get("name", ""))
 
         # Налаштування полів для типів аварій
-        elif tab_index == 1:  
+        elif tab_index == 1:
             self.inputs["category_combo"] = StyledComboBox()
             try:
                 self.cats = ds.get_categories()
-                for c in self.cats: 
+                for c in self.cats:
                     self.inputs["category_combo"].addItem(c["name"], c["id"])
             except Exception as e:
                 print(f"Помилка завантаження категорій у діалог: {e}")
@@ -55,11 +55,11 @@ class DirectoryDialog(QDialog):
             if current_data:
                 self.inputs["incident_name"].setText(current_data.get("incident_name", ""))
                 idx = self.inputs["category_combo"].findText(current_data.get("category_name", ""))
-                if idx >= 0: 
+                if idx >= 0:
                     self.inputs["category_combo"].setCurrentIndex(idx)
 
         # Конфігурація полів для обліку матеріалів
-        elif tab_index == 2:  
+        elif tab_index == 2:
             self.inputs["name"] = QLineEdit()
             self.inputs["unit"] = QLineEdit()
             self.inputs["price"] = QLineEdit()
@@ -73,54 +73,47 @@ class DirectoryDialog(QDialog):
                 self.inputs["price"].setText(current_data.get("price", ""))
 
         # Параметри для формування та призначення аварійних бригад
-        elif tab_index == 3:  
+        elif tab_index == 3:
             self.inputs["crew_number"] = QLineEdit()
             self.inputs["category_combo"] = StyledComboBox()
             try:
                 self.cats = ds.get_categories()
-                for c in self.cats: 
+                for c in self.cats:
                     self.inputs["category_combo"].addItem(c["name"], c["id"])
             except Exception as e:
                 print(f"Помилка завантаження спеціалізацій бригад: {e}")
-                
+
             self.inputs["status_combo"] = StyledComboBox()
             try:
                 self.statuses = ds.get_crew_statuses()
-                for s in self.statuses: 
+                for s in self.statuses:
                     self.inputs["status_combo"].addItem(s["name"], s["id"])
             except Exception as e:
                 print(f"Помилка завантаження статусів бригад: {e}")
-                
+
             self.form.addRow("Номер бригади:", self.inputs["crew_number"])
             self.form.addRow("Спеціалізація:", self.inputs["category_combo"])
-            self.form.addRow("Поточний статус:", self.inputs["status_combo"])  
-            
+            self.form.addRow("Поточний статус:", self.inputs["status_combo"])
+
             if current_data:
                 self.inputs["crew_number"].setText(current_data.get("crew_number", ""))
                 idx_cat = self.inputs["category_combo"].findText(current_data.get("category_name", ""))
-                if idx_cat >= 0: 
+                if idx_cat >= 0:
                     self.inputs["category_combo"].setCurrentIndex(idx_cat)
                 idx_stat = self.inputs["status_combo"].findText(current_data.get("status", ""))
-                if idx_stat >= 0: 
+                if idx_stat >= 0:
                     self.inputs["status_combo"].setCurrentIndex(idx_stat)
 
         layout.addLayout(self.form)
         self.btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        
+
         btn_ok = self.btns.button(QDialogButtonBox.StandardButton.Ok)
-        if btn_ok: 
+        if btn_ok:
             btn_ok.setDefault(True)
-            
+
         self.btns.accepted.connect(self.accept)
         self.btns.rejected.connect(self.reject)
         layout.addWidget(self.btns)
-
-        self.shortcut_delete_user = QShortcut(QKeySequence("Delete"), self.users_table)
-        self.shortcut_delete_user.activated.connect(self.action_delete_user)
-        
-        self.shortcut_delete_dir = QShortcut(QKeySequence("Delete"), self.directory_tabs)
-        self.shortcut_delete_dir.activated.connect(self.action_delete_directory_item)
-
 
     def get_data(self):
         """Збирає введені в діалоговому вікні дані та повертає структурований словник."""
@@ -131,7 +124,8 @@ class DirectoryDialog(QDialog):
         if self.tab_index in (0, 4, 5, 6, 7):
             res["name"] = self.inputs["name"].text().strip() if "name" in self.inputs else ""
         elif self.tab_index == 1:
-            res["category_id"] = self.inputs["category_combo"].currentData() if "category_combo" in self.inputs else None
+            res["category_id"] = self.inputs[
+                "category_combo"].currentData() if "category_combo" in self.inputs else None
             res["incident_name"] = self.inputs["incident_name"].text().strip() if "incident_name" in self.inputs else ""
         elif self.tab_index == 2:
             res["name"] = self.inputs["name"].text().strip() if "name" in self.inputs else ""
@@ -143,7 +137,8 @@ class DirectoryDialog(QDialog):
                 res["price"] = 0.0
         elif self.tab_index == 3:
             res["crew_number"] = self.inputs["crew_number"].text().strip() if "crew_number" in self.inputs else ""
-            res["category_id"] = self.inputs["category_combo"].currentData() if "category_combo" in self.inputs else None
+            res["category_id"] = self.inputs[
+                "category_combo"].currentData() if "category_combo" in self.inputs else None
             res["status_id"] = self.inputs["status_combo"].currentData() if "status_combo" in self.inputs else None
 
         return res
@@ -151,7 +146,7 @@ class DirectoryDialog(QDialog):
 
 class UserDialog(QDialog):
     """Діалогове вікно створення та редагування облікових записів користувачів."""
-    
+
     def __init__(self, parent=None, user_data=None):
         super().__init__(parent)
         self.setWindowTitle("Додати користувача" if not user_data else "Редагувати користувача")
@@ -186,9 +181,9 @@ class UserDialog(QDialog):
 
         self.btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btn_ok = self.btns.button(QDialogButtonBox.StandardButton.Ok)
-        if btn_ok: 
+        if btn_ok:
             btn_ok.setDefault(True)
-            
+
         self.btns.accepted.connect(self.accept)
         self.btns.rejected.connect(self.reject)
         layout.addWidget(self.btns)
@@ -197,7 +192,7 @@ class UserDialog(QDialog):
             self.name_input.setText(user_data['full_name'])
             self.email_input.setText(user_data['email'])
             idx = self.role_combo.findText(user_data['role_name'])
-            if idx >= 0: 
+            if idx >= 0:
                 self.role_combo.setCurrentIndex(idx)
 
     def get_data(self):
@@ -214,16 +209,23 @@ class UserDialog(QDialog):
 
 class ArmAdminWindow(BaseArmWindow):
     """Головне вікно автоматизованого робочого місця (АРМ) адміністратора системи."""
-    
+
     def __init__(self, user_id=1):
         super().__init__("АРМ Адміністратора системи")
         self.current_admin_id = user_id
         self.setup_menu()
         self.init_static_table_filters()
         self.refresh_all_data()
-        
+
         self.shortcut_refresh = QShortcut(QKeySequence("F5"), self)
         self.shortcut_refresh.activated.connect(self.refresh_all_data)
+
+        self.shortcut_delete_user = QShortcut(QKeySequence("Delete"), self.users_table)
+        self.shortcut_delete_user.activated.connect(self.action_delete_user)
+
+        # 🚀 ДОДАНО СЮДИ: Гаряча клавіша для видалення елементів з довідників працюватиме прямо на вкладках!
+        self.shortcut_delete_dir = QShortcut(QKeySequence("Delete"), self.directory_tabs)
+        self.shortcut_delete_dir.activated.connect(self.action_delete_directory_item)
 
     def get_help_data(self):
         return {
@@ -360,7 +362,7 @@ class ArmAdminWindow(BaseArmWindow):
         return page
 
     def build_users_page(self):
-        """Будує сторінку управління системними обліковими записами."""
+        """Будує сторінку управління системними облікових записами."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -584,7 +586,7 @@ class ArmAdminWindow(BaseArmWindow):
             "Щодня", "Щотижня", "Щомісяця", "Свій інтервал (хв)"
         ])
         idx = self.backup_freq.findText(config_data.get("mode", "Щодня"))
-        if idx >= 0: 
+        if idx >= 0:
             self.backup_freq.setCurrentIndex(idx)
 
         self.le_custom_minutes = QLineEdit()
@@ -627,7 +629,7 @@ class ArmAdminWindow(BaseArmWindow):
         if mode == "Свій інтервал (хв)":
             try:
                 custom_mins = int(minutes_text)
-                if custom_mins <= 0: 
+                if custom_mins <= 0:
                     raise ValueError()
             except ValueError:
                 QMessageBox.warning(self, "Помилка", "Введіть ціле число хвилин більше 0!")
@@ -698,7 +700,7 @@ class ArmAdminWindow(BaseArmWindow):
         try:
             self.load_users_data()
             self.load_all_directories()
-            self.load_audit_data()  
+            self.load_audit_data()
             self.refresh_monitoring_data()
         except Exception as e:
             print(f"Помилка наповнення даних: {e}")
@@ -820,7 +822,7 @@ class ArmAdminWindow(BaseArmWindow):
             for row in range(table.rowCount()):
                 for col in range(table.columnCount()):
                     item = table.item(row, col)
-                    if item: 
+                    if item:
                         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
     def load_audit_data(self):
@@ -847,11 +849,11 @@ class ArmAdminWindow(BaseArmWindow):
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
                     if log["event"] in ("DELETE", "BLOCK"):
-                        item_event.setForeground(QColor("#FF5555"))  
+                        item_event.setForeground(QColor("#FF5555"))
                     elif log["event"] in ("INSERT", "ADD"):
-                        item_event.setForeground(QColor("#50FA7B"))  
+                        item_event.setForeground(QColor("#50FA7B"))
                     elif "PASSWORD" in log["event"]:
-                        item_event.setForeground(QColor("#FFB86C"))  
+                        item_event.setForeground(QColor("#FFB86C"))
 
                 self.table_audit.setItem(row_idx, 0, item_id)
                 self.table_audit.setItem(row_idx, 1, item_user)
@@ -878,7 +880,7 @@ class ArmAdminWindow(BaseArmWindow):
         )
 
         if not file_path:
-            return  
+            return
 
         try:
             with open(file_path, "w", encoding="utf-8") as f:
@@ -914,7 +916,8 @@ class ArmAdminWindow(BaseArmWindow):
 
                 f.write(f"Всього вивантажено записів: {exported_count}\n")
 
-            QMessageBox.information(self, "Успіх", f"Журнал дій успішно експортовано! Вивантажено записів: {exported_count}")
+            QMessageBox.information(self, "Успіх",
+                                    f"Журнал дій успішно експортовано! Вивантажено записів: {exported_count}")
         except Exception as e:
             QMessageBox.critical(self, "Помилка", f"Не вдалося зберегти звіт: {e}")
 
@@ -968,7 +971,7 @@ class ArmAdminWindow(BaseArmWindow):
     def action_edit_user(self):
         """Запускає редагування параметрів існуючого користувача."""
         user_id = self.get_selected_user_id()
-        if not user_id: 
+        if not user_id:
             return
         row = self.users_table.selectedItems()[0].row()
         current_data = {
@@ -990,7 +993,7 @@ class ArmAdminWindow(BaseArmWindow):
     def action_reset_password(self):
         """Встановлює новий пароль для облікового запису користувача."""
         user_id = self.get_selected_user_id()
-        if not user_id: 
+        if not user_id:
             return
         new_password, ok = QInputDialog.getText(self, "Скидання пароля", "Введіть новий пароль:",
                                                 QLineEdit.EchoMode.Password)
@@ -1117,7 +1120,7 @@ class ArmAdminWindow(BaseArmWindow):
 
         text_content = item.text().strip()
         if not text_content or text_content == "—":
-            return  
+            return
 
         col_header = "Старе значення змін" if col == 5 else "Нове значення змін"
 
@@ -1134,7 +1137,7 @@ class ArmAdminWindow(BaseArmWindow):
 
         text_edit = QTextEdit()
         text_edit.setPlainText(text_content)
-        text_edit.setReadOnly(True)  
+        text_edit.setReadOnly(True)
 
         if self.is_dark_theme:
             dialog.setStyleSheet("QDialog { background-color: #282A36; color: #F8F8F2; }")
