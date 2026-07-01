@@ -431,6 +431,30 @@ class BaseArmWindow(QWidget):
             cb.update()
 
         global_style = f"""
+            /* --- ФІКС СИСТЕМНИХ ДІАЛОГІВ ТА ПОВІДОМЛЕНЬ --- */
+            QDialog, QMessageBox {{
+                background-color: {table_bg};
+            }}
+            QMessageBox QLabel {{
+                color: {text_color};
+                background-color: transparent;
+            }}
+            QMessageBox QPushButton, QDialogButtonBox QPushButton {{
+                background-color: {accent_color};
+                color: #FFFFFF;
+                font-weight: bold;
+                font-size: 13px;
+                border-radius: 6px;
+                padding: 6px 18px;
+                border: none;
+                min-height: 24px;
+                min-width: 80px;
+            }}
+            QMessageBox QPushButton:hover, QDialogButtonBox QPushButton:hover {{
+                background-color: #7C3AED;
+            }}
+            /* ---------------------------------------------- */
+
             QLabel {{ color: {text_color}; }} 
             QLabel#stat_title {{ color: {'#A6ADC8' if self.is_dark_theme else '#6C757D'}; font-weight: bold; font-size: 14px; border: none; }}
             

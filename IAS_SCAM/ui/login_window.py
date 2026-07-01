@@ -282,6 +282,17 @@ class LoginWindow(QWidget):
 
         global_style = f"""
             QWidget#login_window {{ background-color: {bg_color}; font-family: 'Segoe UI', sans-serif; }}
+            
+            /* --- ФІКС ПОВІДОМЛЕНЬ --- */
+            QMessageBox {{ background-color: {bg_color}; }}
+            QMessageBox QLabel {{ color: {text_col}; background-color: transparent; }}
+            QMessageBox QPushButton {{
+                background-color: {accent_col}; color: #FFFFFF;
+                font-weight: bold; border-radius: 6px; padding: 6px 15px; border: none;
+            }}
+            QMessageBox QPushButton:hover {{ background-color: #7C3AED; }}
+            /* ------------------------ */
+
             QLabel {{ color: {text_col}; }}
             QLabel#title_label {{ font-size: 26px; font-weight: bold; margin-bottom: 10px; color: {text_col}; }}
 
