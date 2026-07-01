@@ -11,8 +11,8 @@ def get_active_requests(show_all=False):
             query = db.query(Requests)
             if not show_all:
                 query = query.join(Status).filter(
-                    ~Status.status_name.ilike("%Виконано%"),
-                    ~Status.status_name.ilike("%Скасовано%")
+                    ~Status.status_name.ilike("%Виконан%"),
+                    ~Status.status_name.ilike("%Скасован%")
                 )
             requests = query.all()
 
@@ -70,7 +70,7 @@ def update_requests_data(updates, current_user_id=None):
                         req.status_id = u['status_id']
 
                         status_obj = db.query(Status).filter(Status.id_status == u['status_id']).first()
-                        if status_obj and "виконано" in status_obj.status_name.lower():
+                        if status_obj and "виконан" in status_obj.status_name.lower():
                             if not req.completion_date: req.completion_date = datetime.now()
                         else:
                             req.completion_date = None

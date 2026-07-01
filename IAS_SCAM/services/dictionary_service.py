@@ -98,6 +98,8 @@ def get_crew_statuses():
 
 def save_directory_item(tab_index, data, item_id=None, admin_id=1):
     """Створює або атомарно оновлює рядок у будь-якому системному довіднику з логуванням змін подій."""
+    if tab_index in (4, 5):
+        return False, "Системна помилка: редагування цього довідника заблоковано на рівні ядра ядра!"
     with SessionLocal() as db:
         try:
             if data is None: 
@@ -208,6 +210,8 @@ def save_directory_item(tab_index, data, item_id=None, admin_id=1):
 
 def delete_directory_item(tab_index, item_id, admin_id=1):
     """Остаточно вилучає запис із системного довідника із попереднім логуванням події в аудит."""
+    if tab_index in (4, 5):
+        return False, "Системна помилка: видалення елементів цього довідника заборонено!"
     with SessionLocal() as db:
         try:
             t_name = TAB_TABLE_MAPPING.get(tab_index, "unknown_directory")

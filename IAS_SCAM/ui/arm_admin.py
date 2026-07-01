@@ -31,14 +31,12 @@ class DirectoryDialog(QDialog):
         self.form = QFormLayout()
         self.inputs = {}
 
-        # Обробка вкладок простих довідників (підприємства, ролі, статуси тощо)
         if tab_index in (0, 4, 5, 6, 7):
             self.inputs["name"] = QLineEdit()
             self.form.addRow("Назва:", self.inputs["name"])
             if current_data:
                 self.inputs["name"].setText(current_data.get("name", ""))
 
-        # Налаштування полів для типів аварій
         elif tab_index == 1:
             self.inputs["category_combo"] = StyledComboBox()
             try:
@@ -58,7 +56,6 @@ class DirectoryDialog(QDialog):
                 if idx >= 0:
                     self.inputs["category_combo"].setCurrentIndex(idx)
 
-        # Конфігурація полів для обліку матеріалів
         elif tab_index == 2:
             self.inputs["name"] = QLineEdit()
             self.inputs["unit"] = QLineEdit()
@@ -72,7 +69,6 @@ class DirectoryDialog(QDialog):
                 self.inputs["unit"].setText(current_data.get("unit", ""))
                 self.inputs["price"].setText(current_data.get("price", ""))
 
-        # Параметри для формування та призначення аварійних бригад
         elif tab_index == 3:
             self.inputs["crew_number"] = QLineEdit()
             self.inputs["category_combo"] = StyledComboBox()
@@ -142,6 +138,24 @@ class DirectoryDialog(QDialog):
             res["status_id"] = self.inputs["status_combo"].currentData() if "status_combo" in self.inputs else None
 
         return res
+    
+    def accept(self):
+        """Перевизначений метод підтвердження для валідації даних перед закриттям діалогу."""
+        if self.tab_index == 2 and "price" in self.inputs:
+            price_text = self.inputs["price"].text().strip()
+            
+            if "," in price_text:
+                QMessageBox.warning(self, "Помилка введення", "Ціну потрібно вводити через крапку, а не через кому (наприклад: 12.50)!")
+                return
+                
+            try:
+                if price_text:
+                    float(price_text)
+            except ValueError:
+                QMessageBox.warning(self, "Помилка введення", "Введено некоректний формат ціни! Використовуйте лише цифри та крапку.")
+                return
+
+        super().accept()
 
 
 class UserDialog(QDialog):
@@ -503,21 +517,30 @@ class ArmAdminWindow(BaseArmWindow):
 
         layout.addWidget(self.directory_tabs)
 
-        dir_btns = QHBoxLayout()
-        btn_add = self.create_action_button("Додати запис")
-        btn_add.clicked.connect(self.action_add_directory_item)
-        dir_btns.addWidget(btn_add)
+        def inject_action_buttons(tab_layout):
+            dir_btns = QHBoxLayout()
+            btn_add = self.create_action_button("Додати запис")
+            btn_add.clicked.connect(self.action_add_directory_item)
+            dir_btns.addWidget(btn_add)
 
-        btn_edit = self.create_action_button("Редагувати")
-        btn_edit.clicked.connect(self.action_edit_directory_item)
-        dir_btns.addWidget(btn_edit)
+            btn_edit = self.create_action_button("Редагувати")
+            btn_edit.clicked.connect(self.action_edit_directory_item)
+            dir_btns.addWidget(btn_edit)
 
-        btn_del = self.create_action_button("Видалити", danger=True)
-        btn_del.clicked.connect(self.action_delete_directory_item)
-        dir_btns.addWidget(btn_del)
+            btn_del = self.create_action_button("Видалити", danger=True)
+            btn_del.clicked.connect(self.action_delete_directory_item)
+            dir_btns.addWidget(btn_del)
 
-        dir_btns.addStretch()
-        layout.addLayout(dir_btns)
+            dir_btns.addStretch()
+            tab_layout.addLayout(dir_btns)
+
+        inject_action_buttons(cat_lay)
+        inject_action_buttons(iss_lay)
+        inject_action_buttons(mat_lay)
+        inject_action_buttons(crew_lay)
+        inject_action_buttons(crit_lay)
+        inject_action_buttons(crew_stat_lay)
+
         return page
 
     def build_audit_page(self):

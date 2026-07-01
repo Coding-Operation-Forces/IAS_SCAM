@@ -1,22 +1,42 @@
-# init_db.py
 import bcrypt
+from sqlalchemy import text  
 from db.database import engine, Base, SessionLocal
-from db.models import Roles, Users
-import db.models
+from db.models import Roles, Users, Status  
 
 
 def create_database_tables():
     print("[INIT] Перевірка та створення таблиць у PostgreSQL...")
-    # Тепер create_all чітко знає про існування 'roles', 'users', 'requests' тощо
     Base.metadata.create_all(bind=engine)
 
     seed_required_data()
 
 
 def seed_required_data():
-    """Автоматично створює базові ролі та супер-адміна, якщо база порожня."""
+    """Автоматично створює базові ролі, супер-адміна та довідники, якщо їх немає."""
     with SessionLocal() as db:
         try:
+            print("[INIT] Перевірка та синхронізація довідника статусів...")
+            required_statuses = ["Нова", "У роботі", "Виконано", "Скасовано"]
+            
+            existing_statuses = db.query(Status).all()
+            existing_status_names = [s.status_name.strip().lower() for s in existing_statuses]
+
+            for req_status in required_statuses:
+                if req_status.lower() not in existing_status_names:
+                    print(f"[INIT] Створення базового статусу: {req_status}")
+                    new_status = Status(status_name=req_status)
+                    db.add(new_status)
+
+            db.commit()
+
+            try:
+                db.execute(text("SELECT setval('status_id_status_seq', COALESCE((SELECT MAX(id_status) FROM status), 1), true);"))
+                db.commit()
+                print("[INIT] Індекс автоінкременту для статусів успішно синхронізовано з MAX(id).")
+            except Exception as seq_err:
+                db.rollback()
+                print(f"[INIT] Попередження при скиданні лічильника індексу: {seq_err}")
+
             if db.query(Roles).count() == 0:
                 print("[INIT] Таблиця ролей порожня. Створюю базові ролі...")
                 roles = [

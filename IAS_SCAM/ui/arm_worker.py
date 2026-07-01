@@ -394,6 +394,10 @@ class ArmWorkerWindow(BaseArmWindow):
 
             cb_crew.setProperty("original_id", cb_crew.currentData())
             cb_crew.setProperty("request_id", row_data["id"])
+
+            if "виконан" in row_data["status"].lower():
+                cb_status.setEnabled(False)
+                cb_crew.setEnabled(False)
             
             dummy_c = QTableWidgetItem("")
             dummy_c.setBackground(bg_color)
