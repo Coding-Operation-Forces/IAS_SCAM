@@ -196,3 +196,12 @@ class AuditLog(Base):
     new_value = Column(String(255))
 
     user = relationship("Users", back_populates="audit_logs")
+
+
+class Budgets(Base):
+    __tablename__ = "budgets"
+
+    id_budget = Column(Integer, primary_key=True, autoincrement=True)
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)

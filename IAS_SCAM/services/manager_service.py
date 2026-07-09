@@ -1,18 +1,15 @@
 import os
-import json
 import traceback
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from db.database import SessionLocal
 from db.models import (Requests, IssueType, Category, Status, 
-                       RequestDetails, Materials, CriticalityLevels)
+                       RequestDetails, Materials, CriticalityLevels, Budgets)
 from docx import Document
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BUDGET_FILE = os.path.join(BASE_DIR, "budget_config.json")
 
 UKR_MONTHS = {
     1: "січень", 2: "лютий", 3: "березень", 4: "квітень",
@@ -20,37 +17,36 @@ UKR_MONTHS = {
     9: "вересень", 10: "жовтень", 11: "листопад", 12: "грудень"
 }
 
-def _load_budget_data():
-    """Зчитування конфігураційного файлу розподілу бюджетних коштів."""
-    if os.path.exists(BUDGET_FILE):
-        try:
-            with open(BUDGET_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except: pass
-    return {}
-
-def _save_budget_data(data):
-    """Збереження оновлених лімітів бюджету у конфігураційний файл."""
-    with open(BUDGET_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4)
 
 def get_budget(year, month):
-    data = _load_budget_data()
-    y_str, m_str = str(year), str(month).zfill(2)
-    return data.get(y_str, {}).get(m_str, 0.0) 
+    with SessionLocal() as db:
+        try:
+            budget_entry = db.query(Budgets).filter_by(year=year, month=month).first()
+            return float(budget_entry.amount) if budget_entry else 0.0
+        except Exception:
+            return 0.0
 
 def get_yearly_budget(year):
-    data = _load_budget_data()
-    y_str = str(year)
-    if y_str in data: return sum(data[y_str].values())
-    return 0.0
+    with SessionLocal() as db:
+        try:
+            total = db.query(func.sum(Budgets.amount)).filter(Budgets.year == year).scalar()
+            return float(total) if total else 0.0
+        except Exception:
+            return 0.0
 
 def set_budget(year, month, amount):
-    data = _load_budget_data()
-    y_str, m_str = str(year), str(month).zfill(2)
-    if y_str not in data: data[y_str] = {}
-    data[y_str][m_str] = float(amount)
-    _save_budget_data(data)
+    with SessionLocal() as db:
+        try:
+            budget_entry = db.query(Budgets).filter_by(year=year, month=month).first()
+            if budget_entry:
+                budget_entry.amount = amount
+            else:
+                budget_entry = Budgets(year=year, month=month, amount=amount)
+                db.add(budget_entry)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"Помилка встановлення бюджету: {e}")
 
 def get_efficiency_data(start_date, end_date, category_filter):
     """Формування статистичних даних завантаженості та ефективності категорій інцидентів."""
@@ -109,12 +105,8 @@ def get_budget_data(year, month):
             if month == -1:
                 report_title = "за весь час"
                 file_suffix = "весь_час"
-                all_data = _load_budget_data()
-                if all_data:
-                    for y, m_data in all_data.items():
-                        for m_str, val in m_data.items():
-                            try: total_budget += float(val)
-                            except: pass
+                total_budget_from_db = db.query(func.sum(Budgets.amount)).scalar()
+                total_budget = float(total_budget_from_db) if total_budget_from_db else 0.0
             else:
                 filter_date = func.coalesce(Requests.completion_date, Requests.request_date)
                 if month == 0: 
