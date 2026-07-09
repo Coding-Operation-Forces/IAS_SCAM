@@ -38,8 +38,8 @@ class HelpWindow(QWidget):
         self.tree.setHeaderHidden(True)
         self.tree.setFixedWidth(270)
         
-        self.tree.setRootIsDecorated(False)
-        self.tree.setItemsExpandable(False) 
+        self.tree.setRootIsDecorated(True)
+        self.tree.setItemsExpandable(True) 
         self.tree.setIndentation(15) 
         
         self.populate_tree(self.help_data, self.tree)
@@ -99,7 +99,7 @@ class HelpWindow(QWidget):
         else:
             empty_html = f"""
             <div style="font-family: 'Segoe UI', sans-serif; font-size: 15px; line-height: 1.6; color: {self.text_color};">
-                <h2 style="color: #8B5CF6;">{item.text(0)}</h2>
+                <h2 style="color: #8B5CF6;">{item.text(0).strip()[2:]}</h2>
                 <p>👈 Розгорніть цей розділ та оберіть підпункт у меню ліворуч для перегляду інформації.</p>
             </div>
             """

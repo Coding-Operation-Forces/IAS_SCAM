@@ -1,10 +1,11 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QStackedWidget, QLabel, QFrame,
-                             QLineEdit, QComboBox, QTableWidgetItem)
+                             QLineEdit, QComboBox, QTableWidgetItem, QMessageBox)
 from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, QPoint, QTimer
 from PyQt6.QtGui import QIcon, QPainter, QPen, QColor, QShortcut, QKeySequence
 import os
 import services.audit_service as audit_service
+from config import APP_VERSION
 
 
 class StyledComboBox(QComboBox):
@@ -47,6 +48,27 @@ class BaseArmWindow(QWidget):
         self.active_button = None
         self.help_window = None
         self.init_base_ui()
+
+    def show_about_dialog(self):
+        """Показує інформаційне вікно "Про програму"."""
+        link_color = "#8B5CF6"
+        about_text = f"""
+        <h3>SCAM</h3>
+        <p style="margin-bottom: 2px;"><b>Автори:</b> Команда COF</p>
+        <ul style="list-style-type: none; padding-left: 15px; margin-top: 0px; margin-bottom: 10px;">
+            <li><b>Керівник проекту:</b> Шинкаренко Володимир Володимирович</li>
+            <li><b>Системний аналітик:</b> Шевчук Кирил Костянтинович</li>
+            <li><b>Дизайнер:</b> Коваль Богдан Русланович</li>
+            <li><b>Технічний письменик:</b> Малогловець Владислав Сергійович</li>
+            <li><b>Тестувальник:</b> Кіян Богдан Володимирович</li>
+        </ul>
+        <p><b>Версія:</b> {APP_VERSION}</p>
+        <hr>
+        <p><b>Контакти для технічної підтримки:</b><br>
+        <a href='mailto:support@scam.ua' style='color: {link_color};'>support@scam.ua</a></p>
+        """
+        QMessageBox.about(self, "Про програму", about_text)
+
 
     def init_base_ui(self):
         """Ініціалізує базові елементи структури інтерфейсу та гарячі клавіші."""
@@ -130,8 +152,13 @@ class BaseArmWindow(QWidget):
         self.sidebar_layout.addStretch()
 
         for btn in self.menu_buttons:
-            if "Довідка" in btn.text(): 
+            if "Help" in btn.text(): 
                 btn.hide()
+
+        self.btn_about = QPushButton("ℹ️ Про програму")
+        self.btn_about.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_about.clicked.connect(self.show_about_dialog)
+        self.sidebar_layout.addWidget(self.btn_about)
 
         self.btn_help = QPushButton("❓ Довідка")
         self.btn_help.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -143,7 +170,7 @@ class BaseArmWindow(QWidget):
         self.theme_btn.clicked.connect(self.animate_theme_toggle)
         self.sidebar_layout.addWidget(self.theme_btn)
 
-        self.btn_logout = QPushButton("Вихід")
+        self.btn_logout = QPushButton("🚪 Вихід")
         self.btn_logout.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_logout.clicked.connect(self.perform_logout)
         self.sidebar_layout.addWidget(self.btn_logout)
@@ -160,7 +187,7 @@ class BaseArmWindow(QWidget):
             self.help_window = None
 
         if self.help_window is None:
-            self.help_window = HelpWindow(self.get_help_data(), f"Довідка: {self.title_text}", self.is_dark_theme)
+            self.help_window = HelpWindow(self.get_help_data(), f"Help: {self.title_text}", self.is_dark_theme)
 
         self.help_window.is_dark_theme = self.is_dark_theme
         self.help_window.apply_theme()
@@ -169,7 +196,7 @@ class BaseArmWindow(QWidget):
         self.help_window.activateWindow()
 
     def get_help_data(self):
-        return {"Довідка": "<p>Універсальна довідка</p>"}
+        return {"Help": "<p>Універсальна довідка</p>"}
 
     def create_table_filters(self, table, filter_options=None):
         """Автоматично формує верхні горизонтальні поля швидкої конфігурації пошуку по таблицях."""
@@ -409,6 +436,8 @@ class BaseArmWindow(QWidget):
 
         if hasattr(self, 'btn_help'): 
             self.btn_help.setStyleSheet(btn_bottom_style)
+        if hasattr(self, 'btn_about'):
+            self.btn_about.setStyleSheet(btn_bottom_style)
         if hasattr(self, 'theme_btn'): 
             self.theme_btn.setStyleSheet(btn_bottom_style)
         if hasattr(self, 'btn_logout'):

@@ -245,53 +245,72 @@ class ArmAdminWindow(BaseArmWindow):
         return {
             "Головне про модуль": """
                 <h3>АРМ Адміністратора системи</h3>
-                <p>Цей модуль забезпечує повний контроль над інфраструктурою додатку. Він дозволяє керувати обліковими записами, редагувати системні довідники, відстежувати дії користувачів та слідкувати за технічним станом сервера.</p>
+                <p>Це центральний пульт керування всією інформаційною системою. Модуль надає адміністратору інструменти для повного контролю над користувачами, системними довідниками, безпекою та технічним станом інфраструктури.</p>
+                <p>Основна мета АРМ — забезпечити стабільну, безпечну та коректну роботу всіх компонентів комплексу.</p>
             """,
             "Моніторинг стану": """
                 <h3>Моніторинг технічного стану</h3>
+                <p>Ця вкладка є дашбордом, що в реальному часі відображає ключові показники працездатності системи.</p>
                 <ul>
-                    <li><b>Сервер бази даних:</b> Автоматично перевіряє доступність СУБД кожні 3 секунди.</li>
-                    <li><b>Резервне копіювання:</b> Відображає інформацію про останній бекап. Ви можете примусово створити резервну копію бази даних, натиснувши кнопку <b>«Створити бекап зараз»</b>.</li>
-                    <li><b>Пам'ням сервера:</b> Індикатор показує відсоток використання диска та точний залишок вільного місця.</li>
+                    <li><b>Сервер бази даних:</b> Індикатор показує, чи є зв'язок із сервером PostgreSQL. Перевірка відбувається автоматично кожні 3 секунди. Зелений колір означає, що все гаразд, червоний — є проблеми з підключенням.</li>
+                    <li><b>Резервне копіювання:</b> Відображає дату й час створення останньої резервної копії. Кнопка <b>«Створити бекап зараз»</b> дозволяє негайно виконати повний дамп бази даних (схеми та даних) у спеціальну директорію на сервері.</li>
+                    <li><b>Місце на диску:</b> Прогрес-бар візуалізує відсоток використання дискового простору на сервері, де зберігаються бекапи. Нижче вказано точний обсяг вільного місця в кілобайтах.</li>
                 </ul>
             """,
             "Управління користувачами": """
                 <h3>Користувачі та Ролі</h3>
-                <p>Розділ для адміністрування персоналу, що має доступ до системи.</p>
+                <p>Розділ для адміністрування персоналу, що має доступ до системи. Ви можете створювати, редагувати та видаляти облікові записи.</p>
                 <ul>
-                    <li><b>Додати користувача:</b> Створення нового облікового запису із зазначенням ролі, ПІБ, пошти та пароля.</li>
-                    <li><b>Редагувати:</b> Зміна даних існуючого користувача (зміна ролі чи пошти).</li>
-                    <li><b>Скинути пароль:</b> Встановлення нового пароля для вибраного працівника без необхідності знати старий.</li>
-                    <li><b>Видалити:</b> Безповоротне видалення облікового запису (всі дії цього користувача залишаться в Журналі).</li>
+                    <li><b>Додавання:</b> Кнопка <b>"Додати користувача"</b> відкриває діалог для створення нового облікового запису. Необхідно вказати роль, ПІБ, email (логін) та тимчасовий пароль.</li>
+                    <li><b>Редагування:</b> Оберіть користувача в таблиці та натисніть <b>"Редагувати дані"</b>. Можна змінити ПІБ, email та роль.</li>
+                    <li><b>Скидання пароля:</b> Якщо працівник забув пароль, оберіть його та натисніть <b>"Скинути пароль"</b>. Система запросить ввести новий пароль, не вимагаючи старого.</li>
+                    <li><b>Видалення:</b> Оберіть користувача та натисніть <b>"Видалити"</b> (або клавішу <b>Delete</b> на клавіатурі). Обліковий запис буде не видалено фізично, а деактивовано (soft delete), щоб зберегти цілісність даних у журналі аудиту.</li>
                 </ul>
             """,
             "Ведення довідників": {
                 "Загальні правила": """
                     <h3>Робота з довідниками</h3>
-                    <p>Довідники є основою системи, з яких формуються всі випадаючі списки під час реєстрації заявок. Щоб змінити дані, оберіть потрібну вкладку, клікніть на рядок у таблиці та виберіть потрібну дію (Редагувати/Видалити).</p>
+                    <p>Довідники — це основа всієї системи. Дані з них (наприклад, статуси, категорії, матеріали) використовуються для заповнення випадаючих списків у всіх АРМах. Коректне ведення довідників забезпечує узгодженість даних.</p>
+                    <p>Для роботи з довідниками оберіть потрібну вкладку, виділіть рядок у таблиці та скористайтесь кнопками <b>"Додати"</b>, <b>"Редагувати"</b> або <b>"Видалити"</b>. Видалення запису можливе лише в тому випадку, якщо він не використовується в інших таблицях (наприклад, не можна видалити статус "В роботі", якщо є заявки з таким статусом).</p>
                 """,
                 "Опис вкладок": """
                     <ul>
                         <li><b>Категорії та Типи аварій:</b> Формують ієрархію проблем (наприклад, "Сантехніка" -> "Прорив труби").</li>
                         <li><b>Матеріали:</b> База ТМЦ з вказанням одиниць виміру та вартості для списання при ремонті.</li>
                         <li><b>Бригади:</b> Перелік робочих груп. Для бригади обов'язково вказується спеціалізація (категорія) та статус (Вільна/Зайнята).</li>
-                        <li><b>Критичність та Статуси:</b> Базові системні маркери для заявок.</li>
+                        <li><b>Ролі, Статуси, Критичність:</b> Базові системні довідники, що визначають логіку роботи системи. Редагування деяких з них може бути обмежено.</li>
                     </ul>
                 """
             },
             "Журнал дій (Аудит)": """
                 <h3>Журнал дій користувачів</h3>
-                <p>Система веде безперервний запис всіх змін (CRUD операцій), які роблять користувачі.</p>
+                <p>Система веде безперервний запис всіх значущих дій, які виконують користувачі (створення, редагування, видалення записів, вхід у систему тощо). Це ключовий інструмент для забезпечення безпеки та розслідування інцидентів.</p>
                 <ul>
-                    <li><b>Перегляд деталей:</b> Зробіть <b>подвійний клік</b> по клітинці "Старе значення" або "Нове значення", щоб відкрити повний текст змін у зручному вікні (особливо корисно для довгих описів).</li>
-                    <li><b>Кольорова індикація:</b> Зеленим підсвічуються нові записи, червоним — видалення, помаранчевим — зміна паролів.</li>
-                    <li><b>Експорт:</b> Кнопка експорту генерує зручний TXT-звіт по всіх відфільтрованих на екрані подіях.</li>
+                    <li><b>Перегляд деталей:</b> Якщо дані в колонках "Старе значення" або "Нове значення" занадто довгі, зробіть по них <b>подвійний клік</b>. Відкриється зручне вікно для перегляду повного тексту.</li>
+                    <li><b>Кольорова індикація:</b> Для швидкого візуального аналізу, рядки в таблиці підсвічуються кольором залежно від типу дії:
+                        <br>• <span style='color:#50FA7B;'>Зелений</span> — створення (INSERT), <span style='color:#FF5555;'>Червоний</span> — видалення/блокування (DELETE), <span style='color:#FFB86C;'>Помаранчевий</span> — зміна пароля.</li>
+                    <li><b>Експорт:</b> Кнопка <b>"📋 Експорт журналу"</b> дозволяє зберегти всі відфільтровані на екрані події у детальний текстовий звіт (.txt) для подальшого аналізу або архівації.</li>
                 </ul>
             """,
             "Настройки системи": """
                 <h3>Глобальні конфігурації</h3>
-                <p>Тут ви можете налаштувати параметри автоматичного резервного копіювання бази даних.</p>
-                <p>Дані зберігаються у спільному файлі `backup_settings.json` та впливають на роботу фонових процесів сервера. Можна обрати інтервал від 1 хвилини до місяця.</p>
+                <p>Тут зібрані налаштування, що впливають на всю систему.</p>
+                <ul>
+                    <li><b>Назва підприємства:</b> Використовується при генерації офіційних звітів.</li>
+                    <li><b>Частота авто-бекапів:</b> Дозволяє налаштувати, як часто серверний процес буде автоматично створювати резервні копії бази даних. Можна обрати готовий інтервал (наприклад, "Щодня") або задати свій у хвилинах.</li>
+                </ul>
+                <p>Ці налаштування зберігаються у спільному файлі `backup_settings.json` на сервері.</p>
+            """,
+            "Гарячі клавіші": """
+                <h3>Гарячі клавіші</h3>
+                <p>Для прискорення роботи ви можете використовувати наступні комбінації клавіш:</p>
+                <ul>
+                    <li><b>F1</b> — Відкрити цю довідку.</li>
+                    <li><b>F5</b> — Примусово оновити дані на всіх вкладках.</li>
+                    <li><b>Delete</b> — Видалити вибраний запис (працює на вкладці "Управління користувачами" та на всіх вкладках довідників).</li>
+                    <li><b>Ctrl+T</b> — Змінити тему оформлення (світла/темна).</li>
+                    <li><b>Ctrl+Q</b> — Вийти з поточного робочого місця (АРМ).</li>
+                </ul>
             """
         }
 
@@ -302,7 +321,6 @@ class ArmAdminWindow(BaseArmWindow):
         self.add_menu_item("Ведення довідників", self.build_directories_page())
         self.add_menu_item("Журнал дій", self.build_audit_page())
         self.add_menu_item("Настройки системи", self.build_settings_page())
-        self.add_menu_item("Про програму", self.build_about_page())
         self.finalize_menu()
 
     def clear_layout(self, layout):
@@ -363,7 +381,7 @@ class ArmAdminWindow(BaseArmWindow):
         self.lbl_free_space.setStyleSheet("color: #A6ADC8; font-size: 13px; font-weight: 500; margin-top: -5px;")
         back_lay.addWidget(self.lbl_free_space)
 
-        btn_backup = self.create_action_button("Створити бекап зараз")
+        btn_backup = self.create_action_button("💾 Створити бекап зараз")
         btn_backup.clicked.connect(self.action_run_backup)
         back_lay.addWidget(btn_backup, alignment=Qt.AlignmentFlag.AlignRight)
 
@@ -387,7 +405,7 @@ class ArmAdminWindow(BaseArmWindow):
 
         top_bar = QHBoxLayout()
         top_bar.addStretch()
-        btn_add = self.create_action_button("Додати користувача", primary=True)
+        btn_add = self.create_action_button("➕ Додати користувача", primary=True)
         btn_add.clicked.connect(self.action_add_user)
         top_bar.addWidget(btn_add)
         layout.addLayout(top_bar)
@@ -402,15 +420,15 @@ class ArmAdminWindow(BaseArmWindow):
         layout.addWidget(self.users_table)
 
         actions = QHBoxLayout()
-        btn_edit = self.create_action_button("Редагувати дані")
+        btn_edit = self.create_action_button("✏️ Редагувати дані")
         btn_edit.clicked.connect(self.action_edit_user)
         actions.addWidget(btn_edit)
 
-        btn_reset = self.create_action_button("Скинути пароль")
+        btn_reset = self.create_action_button("🔑 Скинути пароль")
         btn_reset.clicked.connect(self.action_reset_password)
         actions.addWidget(btn_reset)
 
-        btn_block = self.create_action_button("Видалити", danger=True)
+        btn_block = self.create_action_button("🗑️ Видалити", danger=True)
         btn_block.clicked.connect(self.action_delete_user)
         actions.addWidget(btn_block)
 
@@ -519,15 +537,15 @@ class ArmAdminWindow(BaseArmWindow):
 
         def inject_action_buttons(tab_layout):
             dir_btns = QHBoxLayout()
-            btn_add = self.create_action_button("Додати запис")
+            btn_add = self.create_action_button("➕ Додати запис")
             btn_add.clicked.connect(self.action_add_directory_item)
             dir_btns.addWidget(btn_add)
 
-            btn_edit = self.create_action_button("Редагувати")
+            btn_edit = self.create_action_button("✏️ Редагувати")
             btn_edit.clicked.connect(self.action_edit_directory_item)
             dir_btns.addWidget(btn_edit)
 
-            btn_del = self.create_action_button("Видалити", danger=True)
+            btn_del = self.create_action_button("🗑️ Видалити", danger=True)
             btn_del.clicked.connect(self.action_delete_directory_item)
             dir_btns.addWidget(btn_del)
 
@@ -565,7 +583,7 @@ class ArmAdminWindow(BaseArmWindow):
         layout.addLayout(self.lay_filter_audit)
         layout.addWidget(self.table_audit)
 
-        btn_export = self.create_action_button("Експорт журналу", primary=True)
+        btn_export = self.create_action_button("📋 Експорт журналу", primary=True)
         btn_export.clicked.connect(self.action_export_audit_log)
         layout.addWidget(btn_export, alignment=Qt.AlignmentFlag.AlignRight)
         return page
@@ -628,7 +646,7 @@ class ArmAdminWindow(BaseArmWindow):
 
         layout.addWidget(group)
 
-        btn_save = self.create_action_button("Зберегти настройки", primary=True)
+        btn_save = self.create_action_button("💾 Зберегти настройки", primary=True)
         btn_save.clicked.connect(self.action_save_global_settings)
         self.le_name.returnPressed.connect(self.action_save_global_settings)
         self.le_custom_minutes.returnPressed.connect(self.action_save_global_settings)
@@ -670,35 +688,6 @@ class ArmAdminWindow(BaseArmWindow):
             QMessageBox.information(self, "Успіх", "Глобальні налаштування комплексу успішно оновлено!")
         except Exception as e:
             QMessageBox.critical(self, "Помилка", f"Не вдалося записати файл конфігурації: {e}")
-
-    def build_about_page(self):
-        """Генерує інформаційну сторінку з логотипом та версією програмного забезпечення."""
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        icon_path = os.path.join(base_dir, "icon.png")
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        logo = QLabel()
-        pixmap = QPixmap(icon_path)
-        if not pixmap.isNull():
-            logo.setPixmap(
-                pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-        else:
-            logo.setText("🏢")
-            logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            logo.setStyleSheet("font-size: 80px;")
-
-        layout.addWidget(logo, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        name = QLabel("Система управління комунальним підприємством 'СКАМ'")
-        name.setStyleSheet("font-size: 22px; font-weight: bold; color: #8B5CF6; margin-top: 15px;")
-        layout.addWidget(name, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        version = QLabel(f"Версія {APP_VERSION}")
-        version.setStyleSheet("font-size: 14px;")
-        layout.addWidget(version, alignment=Qt.AlignmentFlag.AlignCenter)
-        return page
 
     def init_static_table_filters(self):
         """Ініціалізує фільтри пошуку для всіх таблиць на сторінці адміністратора."""
@@ -857,34 +846,28 @@ class ArmAdminWindow(BaseArmWindow):
             logs_data = audit_service.get_all_audit_logs()
             self.table_audit.setRowCount(0)
 
+            color_map = {
+                "delete": QColor("#552222") if self.is_dark_theme else QColor("#FFCCCC"),
+                "insert": QColor("#1A3C1A") if self.is_dark_theme else QColor("#E5FFE5"),
+                "password": QColor("#553C1A") if self.is_dark_theme else QColor("#FFE5CC"),
+                "default": QColor("transparent")
+            }
+
             for row_idx, log in enumerate(logs_data):
                 self.table_audit.insertRow(row_idx)
 
-                item_id = QTableWidgetItem(str(log["id"]))
-                item_user = QTableWidgetItem(log["user_name"])
-                item_time = QTableWidgetItem(log["time"])
-                item_event = QTableWidgetItem(log["event"])
-                item_table = QTableWidgetItem(log["table"])
-                item_old = QTableWidgetItem(log["old_val"])
-                item_new = QTableWidgetItem(log["new_val"])
+                event_lower = log["event"].lower()
+                if "delete" in event_lower or "block" in event_lower: row_color = color_map["delete"]
+                elif "insert" in event_lower or "add" in event_lower: row_color = color_map["insert"]
+                elif "password" in event_lower: row_color = color_map["password"]
+                else: row_color = color_map["default"]
 
-                for item in (item_id, item_user, item_time, item_event, item_table, item_old, item_new):
+                row_items = [str(log["id"]), log["user_name"], log["time"], log["event"], log["table"], log["old_val"], log["new_val"]]
+                for col_idx, cell_data in enumerate(row_items):
+                    item = QTableWidgetItem(cell_data)
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-
-                    if log["event"] in ("DELETE", "BLOCK"):
-                        item_event.setForeground(QColor("#FF5555"))
-                    elif log["event"] in ("INSERT", "ADD"):
-                        item_event.setForeground(QColor("#50FA7B"))
-                    elif "PASSWORD" in log["event"]:
-                        item_event.setForeground(QColor("#FFB86C"))
-
-                self.table_audit.setItem(row_idx, 0, item_id)
-                self.table_audit.setItem(row_idx, 1, item_user)
-                self.table_audit.setItem(row_idx, 2, item_time)
-                self.table_audit.setItem(row_idx, 3, item_event)
-                self.table_audit.setItem(row_idx, 4, item_table)
-                self.table_audit.setItem(row_idx, 5, item_old)
-                self.table_audit.setItem(row_idx, 6, item_new)
+                    item.setBackground(row_color)
+                    self.table_audit.setItem(row_idx, col_idx, item)
 
         except Exception as e:
             print(f"Помилка рендеру журналу дій: {e}")
