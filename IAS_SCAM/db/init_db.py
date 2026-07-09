@@ -55,14 +55,14 @@ def seed_required_data():
 
                 admin_user = Users(
                     role_id=1,
-                    full_name="Шевчук Кирил Костянтинович",
+                    full_name="Administrator",
                     email="admin@scam.ua",
                     password_hash=hashed_password,
                     is_active=1,
                     failed_attempts=0
                 )
                 db.add(admin_user)
-                db.commit()
+                db.commit() 
                 print("=" * 60)
                 print("🚀 ПЕРШОГО АДМІНІСТРАТОРА УСПІШНО СТВОРЕНО!")
                 print("📧 Логін: admin@scam.ua")

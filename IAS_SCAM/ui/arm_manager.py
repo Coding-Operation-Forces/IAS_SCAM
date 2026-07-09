@@ -182,7 +182,7 @@ class ArmManagerWindow(BaseArmWindow):
         table_lay = QVBoxLayout(table_container)
         table_lay.setContentsMargins(0, 0, 0, 0)
 
-        table_label = QLabel("Останні заявки (ПКМ для додаткових дій)")
+        table_label = QLabel("Останні заявки")
         table_label.setStyleSheet("font-size: 16px; font-weight: bold;")
         table_lay.addWidget(table_label)
 

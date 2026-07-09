@@ -136,7 +136,7 @@ def main():
 
     splash.update_progress(35, "Авторизація доступу до файлового сервера...")
     auto_connect_shared_folder()
-
+    
     splash.update_progress(60, "Валідація структури та первинних даних БД...")
     try:
         from db.init_db import create_database_tables

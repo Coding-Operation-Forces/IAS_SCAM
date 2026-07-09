@@ -160,7 +160,7 @@ class BaseArmWindow(QWidget):
         self.btn_about.clicked.connect(self.show_about_dialog)
         self.sidebar_layout.addWidget(self.btn_about)
 
-        self.btn_help = QPushButton("❓ Довідка")
+        self.btn_help = QPushButton("❓Help")
         self.btn_help.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_help.clicked.connect(self.show_help_window)
         self.sidebar_layout.addWidget(self.btn_help)
