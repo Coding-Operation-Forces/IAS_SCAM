@@ -1,4 +1,3 @@
-import os
 import traceback
 from datetime import datetime, timedelta
 from sqlalchemy import func

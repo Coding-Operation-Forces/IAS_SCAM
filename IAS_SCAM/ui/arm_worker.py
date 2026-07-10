@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QTableWidget, QHeaderView, QTextEdit, QCompleter, QMenu,
                              QFormLayout, QGroupBox, QScrollArea, QMessageBox, QTableWidgetItem, QLineEdit, QDialog)
 from PyQt6.QtCore import Qt, QTimer, QStringListModel, QPoint, QUrl
-from PyQt6.QtGui import QColor, QShortcut, QKeySequence
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence, QIcon
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 from ui.base_arm import BaseArmWindow, StyledComboBox
@@ -467,6 +467,7 @@ class ArmWorkerWindow(BaseArmWindow):
         if getattr(self, 'map_window', None) is None or not self.map_window.isVisible():
             self.map_window = QWidget()
             self.map_window.setWindowTitle(f"Карта інфраструктури: {full_addr}")
+            self.map_window.setWindowIcon(QIcon("ui/icon.png"))
             self.map_window.resize(1000, 700)
             map_layout = QVBoxLayout(self.map_window)
             map_layout.setContentsMargins(0, 0, 0, 0)
@@ -702,12 +703,7 @@ class ArmWorkerWindow(BaseArmWindow):
         account_layout.addWidget(self.input_account)
         account_layout.addWidget(btn_search_acc)
 
-        self.combo_address_type = StyledComboBox()
-        self.combo_address_type.addItems(["За особовим рахунком (Автоматично)", "Інша адреса (Ввести вручну)"])
-        self.combo_address_type.currentTextChanged.connect(self.on_address_type_changed)
-
-        self.input_address = self.create_line_edit("Вулиця та будинок (Підтягнеться з БД)...")
-        self.input_address.setEnabled(False)
+        self.input_address = self.create_line_edit("Введіть вулицю та номер будинку...")
 
         self.completer_model = QStringListModel()
         self.address_completer = QCompleter(self.completer_model, self)
@@ -716,15 +712,11 @@ class ArmWorkerWindow(BaseArmWindow):
         self.input_address.setCompleter(self.address_completer)
         self.input_address.textEdited.connect(self.on_address_text_edited)
 
-        self.input_apartment = self.create_line_edit("Підтягнеться...")
-        self.input_apartment.setEnabled(False)
-        self.input_entrance = self.create_line_edit("Підтягнеться...")
-        self.input_entrance.setEnabled(False)
-        self.input_floor = self.create_line_edit("Підтягнеться...")
-        self.input_floor.setEnabled(False)
+        self.input_apartment = self.create_line_edit("№ квартири...")
+        self.input_entrance = self.create_line_edit("№ під'їзду...")
+        self.input_floor = self.create_line_edit("Поверх...")
 
         form_app.addRow("Особовий рахунок:", account_layout)
-        form_app.addRow("Тип адреси:", self.combo_address_type)
         form_app.addRow("Вулиця, будинок:", self.input_address)
 
         apt_floor_layout = QHBoxLayout()
@@ -769,14 +761,24 @@ class ArmWorkerWindow(BaseArmWindow):
         scroll_layout.addWidget(group_app)
         scroll_layout.addWidget(group_req)
 
+        btn_layout = QHBoxLayout()
+        
+        btn_clear = self.create_action_button("🧹 Очистити")
+        btn_clear.clicked.connect(self.clear_registration_fields)
+        
         btn_save_req = self.create_action_button("✅ Зберегти заявку")
         btn_save_req.clicked.connect(self.submit_request)
-        scroll_layout.addWidget(btn_save_req, alignment=Qt.AlignmentFlag.AlignRight)
+        
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_clear)
+        btn_layout.addWidget(btn_save_req)
+        
+        scroll_layout.addLayout(btn_layout)
 
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
         return page
-
+    
     def search_applicant(self):
         """Знаходить та підтягує дані абонента за номером його особового рахунку."""
         account = self.input_account.text().strip()
@@ -798,28 +800,32 @@ class ArmWorkerWindow(BaseArmWindow):
             self.current_applicant_id = None
             QMessageBox.information(self, "Результат", "Абонента не знайдено.")
 
-    def on_address_type_changed(self, text):
-        """Керує доступністю полів введення залежно від обраного режиму адресації."""
-        is_auto = "Автоматично" in text
-        self.input_address.setEnabled(not is_auto)
-        self.input_apartment.setEnabled(not is_auto)
-        self.input_floor.setEnabled(not is_auto)
-        self.input_entrance.setEnabled(not is_auto)
-        if is_auto:
-            self.input_address.setPlaceholderText("Вулиця та будинок (Підтягнеться з БД)...")
-            self.input_apartment.setPlaceholderText("Підтягнеться...")
-            self.input_floor.setPlaceholderText("Підтягнеться...")
-            self.input_entrance.setPlaceholderText("Підтягнеться...")
-        else:
-            self.input_address.setPlaceholderText("Введіть вулицю та номер будинку вручну...")
-            self.input_apartment.setPlaceholderText("№ квартири...")
-            self.input_floor.setPlaceholderText("Поверх...")
-            self.input_entrance.setPlaceholderText("№ під'їзду...")
-
     def on_address_text_edited(self, text):
         """Запускає затримку таймера автодоповнення для оптимізації кількості API-запитів."""
-        if len(text) >= 3 and self.combo_address_type.currentText() != "За особовим рахунком (Автоматично)":
+        if len(text) >= 3:
             self.address_timer.start(600)
+    
+    def clear_registration_fields(self):
+        """Очищає всі поля форми реєстрації нового звернення."""
+        self.input_account.clear()
+        self.input_address.clear()
+        self.input_apartment.clear()
+        self.input_entrance.clear()
+        self.input_floor.clear()
+        self.input_lname.clear()
+        self.input_fname.clear()
+        self.input_mname.clear()
+        self.input_phone.clear()
+        self.input_email.clear()
+        self.input_desc.clear()
+        
+        self.combo_channel.setCurrentIndex(0)
+        if self.combo_cat.count() > 0:
+            self.combo_cat.setCurrentIndex(0)
+        if self.combo_criticality.count() > 0:
+            self.combo_criticality.setCurrentIndex(0)
+            
+        self.current_applicant_id = None
 
     def trigger_address_search(self):
         """Ініціює фоновий потік пошуку адрес через OpenStreetMap API."""

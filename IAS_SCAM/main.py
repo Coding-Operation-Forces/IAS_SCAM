@@ -1,17 +1,17 @@
 import sys
 import os
-
 import traceback
 import ctypes
 from ctypes import wintypes
-from dotenv import load_dotenv
-from PyQt6.QtCore import Qt, QRect
+import winreg 
+import keyring
+from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtCore import Qt, QRect, QSettings
 from PyQt6.QtWidgets import QApplication, QSplashScreen, QProgressBar
 from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont
 from config import APP_VERSION
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env"))
 
 os.environ["QT_API"] = "pyqt6"
 os.environ["QT_FORCE_STDERR_LOGGING"] = "1"
@@ -23,9 +23,7 @@ except ImportError:
 
 from ui.login_window import LoginWindow
 
-
 class NETRESOURCE(ctypes.Structure):
-    """Структура Windows API для ідентифікації мережевого ресурсу."""
     _fields_ = [
         ('dwScope', wintypes.DWORD),
         ('dwType', wintypes.DWORD),
@@ -37,18 +35,22 @@ class NETRESOURCE(ctypes.Structure):
         ('lpProvider', wintypes.LPWSTR)
     ]
 
-
 def auto_connect_shared_folder():
-    """Автоматичне монтування віддаленого каталогу за допомогою функції WNetAddConnection2W."""
     if os.name != 'nt':
         return
 
-    remote_path = os.getenv("NET_REMOTE_PATH")
-    username = os.getenv("NET_USERNAME")
-    password = os.getenv("NET_PASSWORD")
+    settings = QSettings("COF", "IAS_SCAM")
+    remote_path = settings.value("NET_REMOTE_PATH")
+    username = settings.value("NET_USERNAME")
 
-    if not all([remote_path, username, password]):
-        print("[NET] Попередження: Мережеві облікові дані відсутні або неповні у .env")
+    if not remote_path or not username:
+        print("[NET] Попередження: Мережеві облікові дані відсутні у налаштуваннях.")
+        return
+        
+    password = keyring.get_password("IAS_SCAM_NET", username)
+
+    if not password:
+        print("[NET] Попередження: Мережевий пароль відсутній у системному сховищі.")
         return
 
     nr = NETRESOURCE()
@@ -56,7 +58,7 @@ def auto_connect_shared_folder():
     nr.lpRemoteName = remote_path
 
     mpr = ctypes.WinDLL('mpr', use_last_error=True)
-    result = mpr.WNetAddConnection2W(ctypes.byref(nr), password, username, 0x4)  # CONNECT_TEMPORARY
+    result = mpr.WNetAddConnection2W(ctypes.byref(nr), password, username, 0x4) 
 
     if result == 0:
         print(f"[NET] Успішно підключено до мережевого сховища.")
@@ -65,9 +67,7 @@ def auto_connect_shared_folder():
     else:
         print(f"[NET] Попередження: Код помилки Windows API: {result}")
 
-
 def qt_exception_hook(exctype, value, tb):
-    """Перехоплювач необроблених винятків для забезпечення коректного логування збоїв Event Loop."""
     print("\n" + "=" * 80)
     print(" КРИТИЧНА ПОМИЛКА ЯДРА PYQT ")
     print("=" * 80)
@@ -76,10 +76,7 @@ def qt_exception_hook(exctype, value, tb):
     sys.__excepthook__(exctype, value, tb)
     sys.exit(1)
 
-
 class DarkSplashScreen(QSplashScreen):
-    """Графічний екран заставки (Splash Screen) із вбудованим індикатором прогресу ініціалізації."""
-
     def __init__(self, icon_path, version):
         width, height = 560, 320
         pixmap = QPixmap(width, height)
@@ -113,18 +110,66 @@ class DarkSplashScreen(QSplashScreen):
             "QProgressBar { border: none; background-color: transparent; } QProgressBar::chunk { background-color: #8B5CF6; }")
 
     def update_progress(self, value, message):
-        """Оновлення прогрес-бару із примусовим викликом циклу обробки подій вікна."""
         self.progress_bar.setValue(value)
         self.showMessage(f"  {message}", Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft, QColor("#F8F8F2"))
         QApplication.processEvents()
 
+def migrate_secrets_from_installer():
+    if os.name != 'nt':
+        return
+
+    key_path = r"Software\COF\IAS_SCAM\TempSecrets"
+    try:
+        registry_key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_READ)
+        
+        db_pass, _ = winreg.QueryValueEx(registry_key, "DB_PASS")
+        net_pass, _ = winreg.QueryValueEx(registry_key, "NET_PASS")
+        winreg.CloseKey(registry_key)
+        
+        settings = QSettings("COF", "IAS_SCAM")
+        db_user = settings.value("DB_USER")
+        net_user = settings.value("NET_USERNAME")
+        
+        if db_user and db_pass:
+            keyring.set_password("IAS_SCAM_DB", db_user, db_pass)
+        if net_user and net_pass:
+            keyring.set_password("IAS_SCAM_NET", net_user, net_pass)
+            
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key_path)
+        print("[INIT] Міграція паролів з інсталятора до keyring пройшла успішно.")
+        
+    except FileNotFoundError:
+        pass 
+    except Exception as e:
+        print(f"[INIT] Помилка міграції паролів: {e}")
+
+def check_and_load_config():
+    """Перевіряє, чи існують налаштування, створені інсталятором."""
+    settings = QSettings("COF", "IAS_SCAM")
+    db_host = settings.value("DB_HOST")
+    
+    if not db_host:
+        print("[INIT] Критична помилка: Відсутні конфігураційні дані системи.")
+
+        error_box = QMessageBox()
+        error_box.setIcon(QMessageBox.Icon.Critical)
+        error_box.setWindowTitle("Помилка ініціалізації")
+        error_box.setText("Відсутні налаштування підключення!")
+        error_box.setInformativeText("Схоже, програма була запущена без встановлення або конфігурацію пошкоджено.\nБудь ласка, запустіть офіційний інсталятор (Setup) системи СКАМ.")
+        error_box.exec()
+        
+        sys.exit(1)
 
 def main():
     sys.excepthook = qt_exception_hook
+    
+    migrate_secrets_from_installer()
 
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+    
+    check_and_load_config()
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     icon_path = os.path.join(base_dir, "ui", "icon.png")
@@ -168,7 +213,6 @@ def main():
     splash.finish(main_window)
 
     sys.exit(app.exec())
-
 
 if __name__ == "__main__":
     main()

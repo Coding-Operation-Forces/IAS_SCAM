@@ -1,18 +1,19 @@
 import os
 import shutil
 import datetime
-from dotenv import load_dotenv
-from sqlalchemy import text, create_engine
+from PyQt6.QtCore import QSettings
+from sqlalchemy import text
 from sqlalchemy.schema import CreateTable
 from db.database import engine, Base, SessionLocal
 
-load_dotenv()
-
-CONFIG_PATH = os.getenv("SHARED_BACKUP_CONFIG", "backup_settings.json")
+settings = QSettings("COF", "IAS_SCAM")
+CONFIG_PATH = settings.value("SHARED_BACKUP_CONFIG", "backup_settings.json")
 CONFIG_DIR = os.path.dirname(CONFIG_PATH)
 
 if not CONFIG_DIR:
     CONFIG_DIR = os.path.abspath(".")
+
+STATUS_FILE = os.path.join(CONFIG_DIR, "backups_status.txt")
 
 STATUS_FILE = os.path.join(CONFIG_DIR, "backups_status.txt")
 

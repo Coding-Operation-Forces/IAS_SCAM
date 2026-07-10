@@ -1,13 +1,20 @@
+import os
 import bcrypt
-from sqlalchemy import text  
+from sqlalchemy import text
 from db.database import engine, Base, SessionLocal
-from db.models import Roles, Users, Status  
+from db.models import Roles, Users, Status
 
+os.environ["PGCLIENTENCODING"] = "utf-8"
 
 def create_database_tables():
     print("[INIT] Перевірка та створення таблиць у PostgreSQL...")
-    Base.metadata.create_all(bind=engine)
 
+    try:
+        engine.connect().connection.set_client_encoding('UTF8')
+    except AttributeError:
+        pass
+
+    Base.metadata.create_all(bind=engine)
     seed_required_data()
 
 

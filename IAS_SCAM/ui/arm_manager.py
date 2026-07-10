@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QAbstractItemView, QMenu, QTableWidgetItem)
 from PyQt6.QtCore import Qt, QUrl, QDate, QPoint
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtGui import QColor, QShortcut, QKeySequence
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence, QIcon
 from ui.base_arm import BaseArmWindow, StyledComboBox
 from services import manager_service, worker_service
 from services.api_service import load_address_cache
@@ -495,6 +495,7 @@ class ArmManagerWindow(BaseArmWindow):
         stats = manager_service.get_map_statistics()
         dialog = QDialog(self)
         dialog.setWindowTitle("Детальна статистика аварій")
+        dialog.setWindowIcon(QIcon("ui/icon.png"))
         dialog.resize(600, 400)
         lay = QVBoxLayout(dialog)
         

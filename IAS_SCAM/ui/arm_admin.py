@@ -6,11 +6,10 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QGroupBox, QTabWidget, QProgressBar, QMessageBox,
                              QInputDialog, QDialog, QDialogButtonBox, QTextEdit)
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QColor, QShortcut, QKeySequence
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence
 from ui.base_arm import BaseArmWindow, StyledComboBox
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from config import APP_VERSION
 import services.user_service as us
 import services.monitoring_service as ms
 import services.dictionary_service as ds

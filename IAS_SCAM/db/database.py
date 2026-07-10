@@ -1,23 +1,22 @@
-# db/database.py
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
+from PyQt6.QtCore import QSettings
+import keyring
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env"))
+settings = QSettings("COF", "IAS_SCAM")
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+db_user = settings.value("DB_USER", "postgres")
+db_host = settings.value("DB_HOST", "localhost")
+db_port = settings.value("DB_PORT", "5432")
+db_name = settings.value("DB_NAME", "skam_db")
 
-if not DATABASE_URL:
-    db_user = os.getenv("DB_USER", "postgres")
-    db_pass = os.getenv("DB_PASSWORD", "postgres")
-    db_host = os.getenv("DB_HOST", "localhost")
-    db_port = os.getenv("DB_PORT", "5432")
-    db_name = os.getenv("DB_NAME", "skam_db")
+db_pass = keyring.get_password("IAS_SCAM_DB", db_user)
 
-    DATABASE_URL = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
+if not db_pass:
+    db_pass = ""
+
+DATABASE_URL = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
 
 print(f"[DB] Використовується рядок підключення: {DATABASE_URL.split('@')[-1]} (пароль приховано)")
 
