@@ -467,7 +467,9 @@ class ArmWorkerWindow(BaseArmWindow):
         if getattr(self, 'map_window', None) is None or not self.map_window.isVisible():
             self.map_window = QWidget()
             self.map_window.setWindowTitle(f"Карта інфраструктури: {full_addr}")
-            self.map_window.setWindowIcon(QIcon("ui/icon.png"))
+            import os
+            icon_path = os.path.join(os.path.dirname(__file__), "icon.png")
+            self.map_window.setWindowIcon(QIcon(icon_path))
             self.map_window.resize(1000, 700)
             map_layout = QVBoxLayout(self.map_window)
             map_layout.setContentsMargins(0, 0, 0, 0)
@@ -476,100 +478,11 @@ class ArmWorkerWindow(BaseArmWindow):
             self.web_map.titleChanged.connect(self.handle_map_title_cache)
             map_layout.addWidget(self.web_map)
             
-            html_content = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-                <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-                <style> 
-                    body { margin: 0; padding: 0; } #map { height: 100vh; width: 100%; } 
-                    .popup-custom { font-family: 'Segoe UI', sans-serif; min-width: 220px; line-height: 1.5; }
-                    .popup-custom h4 { margin: 0 0 8px 0; color: #8B5CF6; border-bottom: 1px solid #ddd; padding-bottom: 4px;}
-                    .desc-box { background-color: #f8f9fa; padding: 6px; border-radius: 4px; border: 1px solid #e9ecef; margin-top: 5px; font-size: 13px; color: #555;}
-                </style>
-            </head>
-            <body>
-                <div id="map"></div>
-                <script>
-                    var kyivBounds = L.latLngBounds(L.latLng(50.33, 30.23), L.latLng(50.55, 30.83));
-                    var map = L.map('map', { 
-                        maxBounds: kyivBounds,
-                        maxBoundsViscosity: 1.0,
-                        minZoom: 11,
-                        maxZoom: 18
-                    }).setView([50.4501, 30.5234], 12);
-                    
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
-                    
-                    var markers = {}; 
-                    var focusTargetId = null;
-                    
-                    function clearMarkers() { for (var k in markers) { map.removeLayer(markers[k]); } markers = {}; }
-                    
-                    function setFocusTarget(id) {
-                        focusTargetId = String(id);
-                        if (markers[focusTargetId]) {
-                            map.flyTo(markers[focusTargetId].getLatLng(), 16, { animate: true, duration: 1.5 });
-                            markers[focusTargetId].openPopup();
-                        }
-                    }
+            import os
+            template_path = os.path.join(os.path.dirname(__file__), "map_template.html")
+            with open(template_path, "r", encoding="utf-8") as f:
+                html_content = f.read()
 
-                    var geocodeQueue = [];
-                    var isGeocoding = false;
-
-                    function processQueue() {
-                        if (geocodeQueue.length === 0) { isGeocoding = false; return; }
-                        isGeocoding = true;
-                        var task = geocodeQueue.shift();
-
-                        fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(task.search_addr + ", Київ, Україна"))
-                            .then(res => res.json())
-                            .then(data => {
-                                if(data.length > 0) {
-                                    task.callback(data[0].lat, data[0].lon);
-                                    document.title = "CACHE|" + task.search_addr.toLowerCase() + "|" + data[0].lat + "|" + data[0].lon;
-                                } else { document.title = "MAP_READY"; }
-                                setTimeout(processQueue, 1500); 
-                            })
-                            .catch(err => { setTimeout(processQueue, 3000); });
-                    }
-                    
-                    function addMarker(id, display_addr, search_addr, status, criticality, issue_type, desc, applicant, time, crew, lat, lon) {
-                        var color = "blue"; var crit = String(criticality).toLowerCase();
-                        if (crit.includes("критич")) color = "red";
-                        else if (crit.includes("висок")) color = "orange";
-                        else if (crit.includes("низьк")) color = "green";
-                        
-                        var customIcon = L.icon({
-                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-' + color + '.png',
-                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
-                        });
-
-                        var popupContent = `<div class="popup-custom"><h4>Заявка #${id}</h4><b>📅 Час:</b> ${time}<br><b>📍 Адреса:</b> ${display_addr}<br><b>👤 Заявник:</b> ${applicant}<br><b>⚠️ Тип:</b> ${issue_type}<br><div class="desc-box"><b>📝 Опис:</b> ${desc}</div><hr style='margin:8px 0;border:0;border-top:1px solid #ddd;'><b>🛠 Статус:</b> ${status}<br><b>👷 Виконавець:</b> ${crew}</div>`;
-                        
-                        function drawPin(markerLat, markerLon) {
-                            var m = L.marker([markerLat, markerLon], {icon: customIcon}).addTo(map).bindPopup(popupContent);
-                            markers[String(id)] = m;
-                            
-                            if (String(id) === focusTargetId) {
-                                map.flyTo([markerLat, markerLon], 16, { animate: true, duration: 1.5 });
-                                m.openPopup();
-                            }
-                        }
-
-                        if (lat !== null && lon !== null) {
-                            drawPin(lat, lon);
-                        } else {
-                            geocodeQueue.push({ search_addr: search_addr, callback: drawPin });
-                            if (!isGeocoding) processQueue();
-                        }
-                    }
-                </script>
-            </body>
-            </html>
-            """
             self.web_map.setHtml(html_content, QUrl("http://localhost"))
             self.map_window.pending_focus_id = req_id
             self.web_map.loadFinished.connect(self._on_external_map_loaded)
@@ -588,34 +501,46 @@ class ArmWorkerWindow(BaseArmWindow):
                 self.web_map.page().runJavaScript(f"if(typeof setFocusTarget==='function') setFocusTarget('{self.map_window.pending_focus_id}');")
 
     def refresh_map_markers(self):
-        """Рендерить поточні активні аварії як кольорові маркери на географічній карті."""
-        if not getattr(self, 'map_window', None) or not hasattr(self, 'web_map'): 
+        """Рендерить поточні активні аварії як маркери на карті, групуючи збіги по адресі."""
+        if not getattr(self, 'map_window', None) or not hasattr(self, 'web_map'):
             return
-        self.web_map.page().runJavaScript("if (typeof clearMarkers === 'function') clearMarkers();")
-        
+
         data = worker_service.get_active_requests(self.show_all_mode)
         address_cache = load_address_cache()
-        
-        def escape_js(text):
-            return str(text or "").replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"').replace("\n", " ").replace("\r", "")
 
+        groups = {}
         for row in data:
-            if row["status"] != "Виконано" and row["status"] != "Скасовано":
-                display_addr = f"{row['street'] or ''}, кв. {row['apartment'] or ''}".strip(", ")
-                search_addr = row["street"].strip()
-                search_addr_lower = search_addr.lower()
-                
-                lat, lon = "null", "null"
-                if search_addr_lower in address_cache:
-                    lat = address_cache[search_addr_lower][0]
-                    lon = address_cache[search_addr_lower][1]
-                
-                request_time = row["request_date"].strftime("%d.%m.%Y %H:%M") if row.get("request_date") else ""
-                applicant = f"{row['applicant_last']} {row['applicant_first']}".strip() or "Невідомо"
-                crew_num = f"Бригада №{row['crew_number']}" if row['crew_number'] else "Не призначено"
+            if row["status"] in ("Виконано", "Скасовано"):
+                continue
+            request_time = row["request_date"].strftime("%d.%m.%Y %H:%M") if row.get("request_date") else ""
+            display_addr = f"{row['street'] or ''}, кв. {row['apartment'] or ''}".strip(", ")
+            search_addr = (row.get("street") or "").strip()
+            search_addr_lower = search_addr.lower()
 
-                js = f"if(typeof addMarker==='function') addMarker('{row['id']}','{escape_js(display_addr)}','{escape_js(search_addr)}','{escape_js(row['status'])}','{escape_js(row['criticality'])}','{escape_js(row['issue_type'])}','{escape_js(row['description'])}','{escape_js(applicant)}','{escape_js(request_time)}','{escape_js(crew_num)}', {lat}, {lon});"
-                self.web_map.page().runJavaScript(js)
+            applicant = f"{row['applicant_last']} {row['applicant_first']}".strip() or "Невідомо"
+            crew_num = f"Бригада №{row['crew_number']}" if row['crew_number'] else "Не призначено"
+
+            req_obj = {
+                "id": str(row["id"]),
+                "display_addr": display_addr,
+                "status": str(row.get("status", "")),
+                "criticality": str(row.get("criticality", "")),
+                "issue_type": str(row.get("issue_type", "")),
+                "desc": str(row.get("description", "") or ""),
+                "applicant": applicant,
+                "time": request_time,
+                "crew": crew_num,
+            }
+
+            if search_addr_lower not in groups:
+                lat = address_cache.get(search_addr_lower, [None, None])[0]
+                lon = address_cache.get(search_addr_lower, [None, None])[1]
+                groups[search_addr_lower] = {"search_addr": search_addr, "lat": lat, "lon": lon, "requests": []}
+            groups[search_addr_lower]["requests"].append(req_obj)
+
+        import json as _json
+        groups_json = _json.dumps(list(groups.values()), ensure_ascii=False)
+        self.web_map.page().runJavaScript(f"if(typeof loadMarkersData==='function') loadMarkersData({groups_json});")
 
     def show_table_context_menu(self, pos: QPoint):
         """Контекстне меню правого кліку для швидкої маршрутизації до інших вкладок."""

@@ -4,7 +4,7 @@ import datetime
 from PyQt6.QtCore import QSettings
 from sqlalchemy import text
 from sqlalchemy.schema import CreateTable
-from db.database import engine, Base, SessionLocal
+from db.database import engine, Base, SessionLocal, db_name
 
 settings = QSettings("COF", "IAS_SCAM")
 CONFIG_PATH = settings.value("SHARED_BACKUP_CONFIG", "backup_settings.json")
@@ -15,14 +15,12 @@ if not CONFIG_DIR:
 
 STATUS_FILE = os.path.join(CONFIG_DIR, "backups_status.txt")
 
-STATUS_FILE = os.path.join(CONFIG_DIR, "backups_status.txt")
-
 def check_db_status() -> bool:
     """Виконання тестового низькорівневого запиту для перевірки працездатності СУБД."""
     try:
         with engine.connect().execution_options(timeout=2.0) as connection:
             result = connection.execute(text("SELECT current_database();")).fetchone()
-            if result and result[0] == "skam_db":
+            if result and result[0] == db_name:
                 return True
             return False
     except Exception:

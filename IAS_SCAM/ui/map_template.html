@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body { margin: 0; padding: 0; } #map { height: 100vh; width: 100%; }
+        .popup-custom { font-family: 'Segoe UI', sans-serif; min-width: 240px; line-height: 1.6; }
+        .popup-custom h4 { margin: 0 0 8px 0; color: #8B5CF6; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+        .desc-box { background: #f8f9fa; padding: 6px; border-radius: 4px; border: 1px solid #e9ecef; margin-top: 5px; font-size: 13px; color: #555; }
+        .cluster-item { cursor: pointer; padding: 8px 10px; border-radius: 6px; margin: 4px 0; border: 1px solid #e0e0e0; background: #fff; transition: background 0.15s, border-color 0.15s; }
+        .cluster-item:hover { background: #f3eeff; border-color: #8B5CF6; }
+        .crit-badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; color: white; margin-left: 4px; }
+        .status-tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; background: #e9ecef; color: #555; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        var kyivBounds = L.latLngBounds(L.latLng(50.33, 30.23), L.latLng(50.55, 30.83));
+        var map = L.map('map', {
+            maxBounds: kyivBounds, maxBoundsViscosity: 1.0, minZoom: 11, maxZoom: 18
+        }).setView([50.4501, 30.5234], 12);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+        var markers = {}, focusTargetId = null, popupCache = {};
+
+        function clearMarkers() {
+            for (var k in markers) { map.removeLayer(markers[k]); }
+            markers = {}; popupCache = {};
+        }
+        function setFocusTarget(id) {
+            focusTargetId = String(id);
+            if (markers[focusTargetId]) {
+                map.flyTo(markers[focusTargetId].getLatLng(), 16, { animate: true, duration: 1.5 });
+                markers[focusTargetId].openPopup();
+            }
+        }
+
+        var geocodeQueue = [], isGeocoding = false;
+        function processQueue() {
+            if (geocodeQueue.length === 0) { isGeocoding = false; return; }
+            isGeocoding = true;
+            var task = geocodeQueue.shift();
+            fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(task.search_addr + ", Київ, Україна"))
+                .then(res => res.json())
+                .then(data => {
+                    if (data.length > 0) {
+                        task.callback(parseFloat(data[0].lat), parseFloat(data[0].lon));
+                        document.title = "CACHE|" + task.search_addr.toLowerCase() + "|" + data[0].lat + "|" + data[0].lon;
+                    } else { document.title = "MAP_READY"; }
+                    setTimeout(processQueue, 1500);
+                })
+                .catch(() => { setTimeout(processQueue, 3000); });
+        }
+
+        function getCritColor(crit) {
+            var c = String(crit).toLowerCase();
+            if (c.includes('критич')) return 'red';
+            if (c.includes('висок')) return 'orange';
+            if (c.includes('низьк')) return 'green';
+            return 'blue';
+        }
+        function getCritHex(crit) {
+            return {'red':'#FF5555','orange':'#FFB86C','green':'#50FA7B','blue':'#8B5CF6'}[getCritColor(crit)] || '#8B5CF6';
+        }
+        function getDominantHex(requests) {
+            for (var p of ['red','orange','green','blue'])
+                for (var r of requests) if (getCritColor(r.criticality) === p) return getCritHex(r.criticality);
+            return '#8B5CF6';
+        }
+
+        function buildSinglePopup(req) {
+            return '<div class="popup-custom"><h4>Заявка #' + req.id + '</h4>' +
+                '<b>📅 Час:</b> ' + req.time + '<br>' +
+                '<b>📍 Адреса:</b> ' + req.display_addr + '<br>' +
+                '<b>👤 Заявник:</b> ' + req.applicant + '<br>' +
+                '<b>⚠️ Тип:</b> ' + req.issue_type + '<br>' +
+                '<div class="desc-box"><b>📝 Опис:</b> ' + req.desc + '</div>' +
+                '<hr style="margin:8px 0;border:0;border-top:1px solid #ddd;">' +
+                '<b>🛠 Статус:</b> ' + req.status + '<br>' +
+                '<b>👷 Виконавець:</b> ' + req.crew + '</div>';
+        }
+
+        function showDetailPopup(cacheKey, idx, lat, lon) {
+            var req = popupCache[cacheKey][idx];
+            map.closePopup();
+            setTimeout(function() {
+                L.popup({ maxWidth: 380 }).setLatLng([lat, lon]).setContent(buildSinglePopup(req)).openOn(map);
+            }, 60);
+        }
+
+        function buildClusterPopup(requests, cacheKey, lat, lon) {
+            var items = '';
+            for (var i = 0; i < requests.length; i++) {
+                var r = requests[i], hex = getCritHex(r.criticality);
+                items += '<div class="cluster-item" onclick="showDetailPopup(\'' + cacheKey + '\',' + i + ',' + lat + ',' + lon + ')">' +
+                    '<div style="display:flex;align-items:center;gap:6px;">' +
+                    '<span style="width:10px;height:10px;border-radius:50%;background:' + hex + ';flex-shrink:0;display:inline-block;"></span>' +
+                    '<b>#' + r.id + '</b> &mdash; ' + r.issue_type + '</div>' +
+                    '<div style="margin-top:3px;">' +
+                    '<span class="status-tag">' + r.status + '</span>' +
+                    '<span class="crit-badge" style="background:' + hex + ';">' + r.criticality + '</span>' +
+                    '</div></div>';
+            }
+            return '<div style="min-width:300px;">' +
+                '<h4 style="color:#8B5CF6;margin:0 0 6px 0;border-bottom:1px solid #ddd;padding-bottom:5px;">📍 ' + requests[0].display_addr + '</h4>' +
+                '<p style="margin:0 0 8px 0;font-size:13px;color:#777;"><b>' + requests.length + ' заявок на цій адресі</b></p>' +
+                '<div style="max-height:300px;overflow-y:auto;">' + items + '</div></div>';
+        }
+
+        function addGroupedMarker(group) {
+            var requests = group.requests, search_addr = group.search_addr;
+            var lat = group.lat, lon = group.lon;
+            var cacheKey = 'g' + Object.keys(popupCache).length;
+            popupCache[cacheKey] = requests;
+
+            function drawMarkers(mLat, mLon) {
+                mLat = parseFloat(mLat); mLon = parseFloat(mLon);
+                if (requests.length === 1) {
+                    var r = requests[0];
+                    var icon = L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-' + getCritColor(r.criticality) + '.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
+                    });
+                    var m = L.marker([mLat, mLon], {icon: icon}).addTo(map).bindPopup(buildSinglePopup(r), {maxWidth: 380});
+                    markers[String(r.id)] = m;
+                    if (String(r.id) === focusTargetId) { map.flyTo([mLat, mLon], 16, {animate:true,duration:1.5}); m.openPopup(); }
+                } else {
+                    var hex = getDominantHex(requests);
+                    var clusterIcon = L.divIcon({
+                        className: '',
+                        html: '<div style="width:46px;height:46px;background:' + hex + ';border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.3);cursor:pointer;">' + requests.length + '</div>',
+                        iconSize: [46, 46], iconAnchor: [23, 23], popupAnchor: [0, -24]
+                    });
+                    var ll = [mLat, mLon];
+                    var cm = L.marker(ll, {icon: clusterIcon}).addTo(map);
+                    cm.on('click', (function(l, rq, ck) {
+                        return function() {
+                            L.popup({maxWidth: 420}).setLatLng(l).setContent(buildClusterPopup(rq, ck, l[0], l[1])).openOn(map);
+                        };
+                    })(ll, requests, cacheKey));
+                    requests.forEach(function(r) { markers[String(r.id)] = cm; });
+                    requests.forEach(function(r) {
+                        if (String(r.id) === focusTargetId) {
+                            map.flyTo(ll, 16, {animate:true,duration:1.5});
+                            setTimeout(function() { cm.fire('click'); }, 1600);
+                        }
+                    });
+                }
+            }
+
+            if (lat !== null && lon !== null) { drawMarkers(lat, lon); }
+            else { geocodeQueue.push({search_addr: search_addr, callback: drawMarkers}); if (!isGeocoding) processQueue(); }
+        }
+
+        function loadMarkersData(groups) {
+            clearMarkers();
+            for (var i = 0; i < groups.length; i++) { addGroupedMarker(groups[i]); }
+        }
+    </script>
+</body>
+</html>

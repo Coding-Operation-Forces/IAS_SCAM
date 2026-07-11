@@ -11,8 +11,7 @@ from services.auth_service import hash_password
 def update_admin_password():
     db = SessionLocal()
 
-    # Пошук запису адміністратора за фіксованою адресою електронної пошти
-    admin = db.query(Users).filter(Users.email == "admin@skam.ua").first()
+    admin = db.query(Users).filter(Users.email == "admin@scam.ua").first()
 
     if admin:
         # Безпечне оновлення пароля за допомогою хеш-функції

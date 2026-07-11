@@ -1,5 +1,5 @@
 import os
-import sys
+import json
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QTableWidget, QTableWidgetItem,
                              QHeaderView, QLineEdit, QFormLayout,
@@ -8,8 +8,6 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QShortcut, QKeySequence
 from ui.base_arm import BaseArmWindow, StyledComboBox
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import services.user_service as us
 import services.monitoring_service as ms
 import services.dictionary_service as ds
@@ -589,7 +587,6 @@ class ArmAdminWindow(BaseArmWindow):
 
     def build_settings_page(self):
         """Формує сторінку глобальної конфігурації системи та параметрів автоматичного бекапу."""
-        import json
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -656,7 +653,6 @@ class ArmAdminWindow(BaseArmWindow):
 
     def action_save_global_settings(self):
         """Записує конфігураційні зміни підприємства та бекапів у загальний JSON-файл."""
-        import json
         company_text = self.le_name.text().strip()
         mode = self.backup_freq.currentText()
         minutes_text = self.le_custom_minutes.text().strip()
