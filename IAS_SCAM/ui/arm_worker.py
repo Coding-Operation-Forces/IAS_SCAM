@@ -73,7 +73,7 @@ class ArmWorkerWindow(BaseArmWindow):
                     <ul>
                         <li><b>Швидке редагування:</b> Ви можете змінювати <b>Статус</b> заявки та призначати на неї <b>Бригаду</b> прямо в таблиці, обираючи потрібні значення з випадаючих списків. Після внесення змін обов'язково натисніть кнопку <b>"💾 Зберегти зміни"</b> (або <b>Ctrl+S</b>), щоб записати їх у базу даних.</li>
                         <li><b>Кольорова індикація:</b> Рядки в таблиці підсвічуються різними кольорами залежно від рівня критичності для швидкого візуального розпізнавання пріоритетних завдань:
-                            <br><span style='color:red;'>■</span> - Критична, <span style='color:orange;'>■</span> - Висока, <span style='color:green;'>■</span> - Низька.</li>
+                            <br><span style='color:red;'>■</span> - Критична, <span style='color:orange;'>■</span> - Висока, <span style='color:blue;'>■</span> - Середня, <span style='color:green;'>■</span> - Низька.</li>
                         <li><b>Детальний опис:</b> Якщо текст у колонці "Опис проблеми" занадто довгий, зробіть по ній <b>подвійний клік</b>, щоб відкрити зручне вікно для читання повного тексту звернення.</li>
                         <li><b>Фільтрація та пошук:</b> Для швидкого пошуку потрібної заявки вводьте текст у поля під заголовками колонок. Можна фільтрувати за будь-якою колонкою, наприклад, за адресою, прізвищем заявника або статусом.</li>
                     </ul>
@@ -157,9 +157,11 @@ class ArmWorkerWindow(BaseArmWindow):
             return QColor("#552222") if self.is_dark_theme else QColor("#FFCCCC")
         elif "висок" in c: 
             return QColor("#553C1A") if self.is_dark_theme else QColor("#FFE5CC")
+        elif "середн" in c:
+            return QColor("#1A2B55") if self.is_dark_theme else QColor("#CCE5FF")
         elif "низьк" in c: 
             return QColor("#1A3C1A") if self.is_dark_theme else QColor("#E5FFE5")
-        return QColor("#1F2D44") if self.is_dark_theme else QColor("#E5F2FF")
+        return QColor("#1F2D44") if self.is_dark_theme else QColor("#F8F9FA")
 
     def apply_theme(self):
         """Забезпечує коректну колірну палітру для всіх таблиць та вбудованих комбобоксів."""
