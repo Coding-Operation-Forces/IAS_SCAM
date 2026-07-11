@@ -1,6 +1,6 @@
 import os
 from PyQt6.QtWidgets import (QHBoxLayout, QWidget, QVBoxLayout,
-                             QTreeWidget, QTreeWidgetItem, QTextBrowser)
+                             QTreeWidget, QTreeWidgetItem, QTextBrowser, QPushButton)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
@@ -52,6 +52,12 @@ class HelpWindow(QWidget):
         h_layout.addWidget(self.tree)
         h_layout.addWidget(self.browser)
         layout.addLayout(h_layout)
+
+        self.btn_open_pdf = QPushButton("📖 Детальна інструкція (PDF)")
+        self.btn_open_pdf.setFixedHeight(40)
+        self.btn_open_pdf.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_open_pdf.clicked.connect(self.open_detailed_help_pdf)
+        layout.addWidget(self.btn_open_pdf)
 
         if self.tree.topLevelItemCount() > 0:
             first_item = self.tree.topLevelItem(0)
@@ -105,6 +111,22 @@ class HelpWindow(QWidget):
             """
             self.browser.setHtml(empty_html)
 
+    def open_detailed_help_pdf(self):
+        """Знаходить та відкриває PDF-інструкцію користувача у програмі за замовчуванням."""
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        pdf_path = os.path.abspath(os.path.join(base_dir, "Інструкція для користувачів.pdf"))
+
+        if not os.path.exists(pdf_path):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Помилка", f"Файл інструкції не знайдено за шляхом:\n{pdf_path}")
+            return
+            
+        try:
+            os.startfile(pdf_path)
+        except Exception as ex:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Помилка", f"Не вдалося відкрити файл інструкції: {ex}")
+
     def apply_theme(self):
         """Стилізує віджети вікна довідки відповідно до обраної глобальної теми."""
         if self.is_dark_theme:
@@ -118,6 +140,7 @@ class HelpWindow(QWidget):
             scroll_bg = "transparent"
             scroll_handle = "#44475A"
             scroll_hover = "#6272A4"
+            btn_hover_color = "#7C3AED"
         else:
             bg_color = "#F8F9FA"
             tree_bg = "#FFFFFF"
@@ -129,6 +152,7 @@ class HelpWindow(QWidget):
             scroll_bg = "transparent"
             scroll_handle = "#CED4DA"
             scroll_hover = "#ADB5BD"
+            btn_hover_color = "#7C3AED"
 
         self.setStyleSheet(f"""
             QWidget {{ background-color: {bg_color}; color: {self.text_color}; }}
@@ -160,6 +184,19 @@ class HelpWindow(QWidget):
                 border: 1px solid {border_color};
                 border-radius: 6px;
                 padding: 15px;
+            }}
+
+            QPushButton {{
+                background-color: {accent_color};
+                color: #FFFFFF;
+                font-weight: bold;
+                font-size: 14px;
+                border-radius: 6px;
+                border: none;
+                padding: 10px 20px;
+            }}
+            QPushButton:hover {{
+                background-color: {btn_hover_color};
             }}
 
             QScrollBar:vertical {{
