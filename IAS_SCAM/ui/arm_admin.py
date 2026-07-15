@@ -553,7 +553,6 @@ class ArmAdminWindow(BaseArmWindow):
         inject_action_buttons(iss_lay)
         inject_action_buttons(mat_lay)
         inject_action_buttons(crew_lay)
-        inject_action_buttons(crit_lay)
         inject_action_buttons(crew_stat_lay)
 
         return page
@@ -1095,6 +1094,11 @@ class ArmAdminWindow(BaseArmWindow):
     def action_delete_directory_item(self):
         """Остаточно вилучає запис із активного довідника, якщо немає обмежень цілісності БД."""
         tab_idx, table = self.get_active_directory_table_and_index()
+        
+        if tab_idx in (4, 5, 6):
+            QMessageBox.warning(self, "Обмеження", "Цей довідник є системним, його зміна заборонена.")
+            return
+            
         selected = table.selectedItems()
         if not selected:
             QMessageBox.warning(self, "Увага", "Будь ласка, спочатку оберіть запис у таблиці!")

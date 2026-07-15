@@ -2,7 +2,7 @@ import os
 import bcrypt
 from sqlalchemy import text
 from db.database import engine, Base, SessionLocal
-from db.models import Roles, Users, Status
+from db.models import Roles, Users, Status, CriticalityLevels
 
 os.environ["PGCLIENTENCODING"] = "utf-8"
 
@@ -43,6 +43,20 @@ def seed_required_data():
             except Exception as seq_err:
                 db.rollback()
                 print(f"[INIT] Попередження при скиданні лічильника індексу: {seq_err}")
+
+            print("[INIT] Перевірка та створення рівнів критичності...")
+            required_criticalities = ["Низький", "Середній", "Високий", "Критичний"]
+            
+            existing_crits = db.query(CriticalityLevels).all()
+            existing_crit_names = [c.level_name.strip().lower() for c in existing_crits]
+
+            for req_crit in required_criticalities:
+                if req_crit.lower() not in existing_crit_names:
+                    print(f"[INIT] Створення базової критичності: {req_crit}")
+                    new_crit = CriticalityLevels(level_name=req_crit)
+                    db.add(new_crit)
+
+            db.commit()
 
             if db.query(Roles).count() == 0:
                 print("[INIT] Таблиця ролей порожня. Створюю базові ролі...")

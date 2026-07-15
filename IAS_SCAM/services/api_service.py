@@ -4,9 +4,19 @@ import os
 from PyQt6.QtCore import QThread, pyqtSignal
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CACHE_FILE = os.path.join(BASE_DIR, "geo_cache.json")
-ADDRESS_CACHE_FILE = os.path.join(BASE_DIR, "address_cache.json") 
 
+def get_app_data_dir():
+    app_name = "IAS_SCAM"
+    if os.name == 'nt':
+        base = os.getenv('APPDATA') or os.path.expanduser("~")
+        return os.path.join(base, app_name)
+    return os.path.join(os.path.expanduser("~"), f".{app_name.lower()}")
+
+CACHE_DIR = get_app_data_dir()
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+CACHE_FILE = os.path.join(CACHE_DIR, "geo_cache.json")
+ADDRESS_CACHE_FILE = os.path.join(CACHE_DIR, "address_cache.json")
 
 def load_geo_cache():
     """Зчитує локальний кеш назв вулиць для прискорення автозаповнення."""
