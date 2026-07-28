@@ -30,3 +30,6 @@ Thumbs.db
 desktop.ini
 ehthumbs.db
 .DS_Store
+Output/
+SCAM_Server_Deployment.exe
+Setup.iss
